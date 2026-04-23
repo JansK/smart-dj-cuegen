@@ -293,7 +293,56 @@ dj-cue show-elements <audio_file>           # print raw AnalysisResult
 dj-cue show-elements <audio_file> \
   --apply-rules                             # also preview cue placements
 dj-cue validate-config                      # validate rules.yaml, report errors
+
+dj-cue backup                               # backup all cue/loop points from master.db
+dj-cue backup --playlist "Deep House"       # backup only tracks in a playlist
+dj-cue backup --output PATH                 # custom path (default: ~/.dj-cue/backups/<timestamp>.json)
+dj-cue backup list                          # list all backups in ~/.dj-cue/backups/
+dj-cue backup diff <file-a> <file-b>        # show what changed between two backups
+
+dj-cue restore <backup-file>               # generate rekordbox.xml from a backup
+dj-cue restore <backup-file> \
+  --output PATH                            # custom xml path (default: ./restored.xml)
+dj-cue restore <backup-file> \
+  --tracks "path/to/track.mp3"            # restore only specific tracks from the backup
 ```
+
+### Backup Format
+
+Backups are JSON files written to `~/.dj-cue/backups/<ISO-timestamp>.json` by default. Each file captures a full snapshot of cue/loop data for the backed-up tracks, with enough metadata to reconstruct the XML import without re-reading the database.
+
+```json
+{
+  "created_at": "2026-04-23T22:15:00Z",
+  "rekordbox_db": "/Users/kevin/Library/Pioneer/rekordbox/master.db",
+  "tracks": [
+    {
+      "id": "12345",
+      "path": "/Music/Deep House/Track.mp3",
+      "artist": "Innervisions",
+      "title": "Lose Control",
+      "cues": [
+        {
+          "type": "memory_cue",
+          "position_seconds": 184.5,
+          "name": "Vox -64",
+          "color": "blue"
+        },
+        {
+          "type": "loop",
+          "start_seconds": 0.0,
+          "end_seconds": 63.5,
+          "name": "Intro"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`restore` reads this file and generates a `rekordbox.xml` using the same writer path as `analyze`. The user imports it into Rekordbox via **File → Import → rekordbox xml**.
+
+`backup diff` compares two snapshots and reports added, removed, and changed cues per track — useful for auditing what a run changed before deciding whether to restore.
 
 ### `show-elements --apply-rules` output
 
@@ -375,14 +424,19 @@ dj-cue-system/
 │       ├── rules/
 │       │   ├── config.py       # YAML loading + Pydantic validation
 │       │   └── engine.py       # resolves rulesets → CuePoint/LoopPoint list
-│       └── writers/
-│           ├── base.py         # CueWriter ABC + CuePoint/LoopPoint dataclasses
-│           ├── rekordbox_xml.py
-│           └── dry_run.py
+│       ├── writers/
+│       │   ├── base.py         # CueWriter ABC + CuePoint/LoopPoint dataclasses
+│       │   ├── rekordbox_xml.py
+│       │   └── dry_run.py
+│       └── backup/
+│           ├── reader.py       # reads djmdCue rows from master.db into backup model
+│           ├── writer.py       # serializes/deserializes backup JSON
+│           └── diff.py         # compares two backups, formats diff output
 └── tests/
     ├── analysis/
     ├── rules/
-    └── writers/
+    ├── writers/
+    └── backup/
 ```
 
 ---

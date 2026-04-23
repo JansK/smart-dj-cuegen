@@ -292,6 +292,11 @@ Options:
 dj-cue show-elements <audio_file>           # print raw AnalysisResult
 dj-cue show-elements <audio_file> \
   --apply-rules                             # also preview cue placements
+
+dj-cue show-cues <audio_file>              # show cue/loop points already stored in Rekordbox
+dj-cue show-cues <audio_file> \
+  --db PATH                               # custom master.db path (auto-detected on Mac)
+
 dj-cue validate-config                      # validate rules.yaml, report errors
 
 dj-cue backup                               # backup all cue/loop points from master.db
@@ -375,6 +380,34 @@ Would place:
   ⚠ Rule "first_vocal_onset offset -64": clamped to bar 0 (computed bar -50)
 ```
 
+### `show-cues` output
+
+Reads existing cue and loop points directly from `master.db` for the track matching the given file path. No audio analysis is performed. If the track is not found in the library the command exits with a clear error. If bar numbers are available (ANLZ files exist for the track), they are shown alongside timestamps; otherwise only timestamps are shown.
+
+```
+$ dj-cue show-cues "Solar Fields - Leaving Home.flac"
+
+Track:  Solar Fields — Leaving Home
+Path:   /Music/Melodic Techno/Solar Fields - Leaving Home.flac
+
+Cue points (2):
+  memory cue  "Vox -64"    4.100s    bar 2    blue
+  memory cue  "Big Break"  343.200s  bar 72   purple
+
+Loop points (2):
+  loop  "Intro"    0.000s → 63.500s    bar 0 → bar 16
+  loop  "Outro"  443.200s → 503.000s  bar 112 → bar 128
+
+$ dj-cue show-cues "unprocessed-track.flac"
+
+Track:  DJ Unknown — Untitled
+Path:   /Music/unprocessed-track.flac
+
+No cue or loop points found.
+```
+
+Bar numbers are derived from the track's ANLZ beat grid if present. If ANLZ is absent, bar columns are omitted.
+
 ---
 
 ## Writer Extension Point
@@ -413,7 +446,7 @@ dj-cue-system/
 │       ├── __init__.py
 │       ├── cli.py
 │       ├── library/
-│       │   ├── reader.py       # reads master.db via pyrekordbox (read-only)
+│       │   ├── reader.py       # reads master.db via pyrekordbox (read-only); get_tracks(), get_track_by_path(), get_track_playlists()
 │       │   └── models.py       # Track, Playlist, ExistingCue dataclasses
 │       ├── analysis/
 │       │   ├── anlz.py         # parses .DAT/.EXT ANLZ binary files

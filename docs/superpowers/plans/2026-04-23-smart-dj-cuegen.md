@@ -1971,7 +1971,7 @@ Background: pyrekordbox `Rekordbox6Database` auto-detects `master.db` on Mac at 
 ```python
 # tests/library/test_reader.py
 from unittest.mock import MagicMock, patch
-from dj_cue_system.library.reader import get_tracks, get_track_playlists, DEFAULT_DB_PATH
+from dj_cue_system.library.reader import get_tracks, get_track_playlists, get_track_by_path, DEFAULT_DB_PATH
 from dj_cue_system.library.models import Track, ExistingCue
 
 
@@ -2125,17 +2125,73 @@ def get_track_playlists(db_path: str | None = None) -> dict[str, list[str]]:
         pl_name = playlists_by_id.get(pt.PlaylistID, "")
         result.setdefault(str(pt.ContentID), []).append(pl_name)
     return result
+
+
+def get_track_by_path(audio_path: str, db_path: str | None = None) -> Track | None:
+    """Return a Track matching the given file path, or None if not in library."""
+    db = Rekordbox6Database(db_path or DEFAULT_DB_PATH)
+
+    all_cues = db.get_cue()
+    cues_by_content: dict[str, list] = {}
+    for cue in all_cues:
+        cues_by_content.setdefault(str(cue.ContentID), []).append(cue)
+
+    for content in db.get_content():
+        if str(content.FolderPath) == audio_path:
+            raw_cues = cues_by_content.get(str(content.ID), [])
+            existing = [
+                ExistingCue(
+                    position_seconds=c.InMsec / 1000.0,
+                    cue_type=_KIND_TO_TYPE.get(c.Kind, "unknown"),
+                    name=c.Comment or "",
+                )
+                for c in raw_cues
+            ]
+            return Track(
+                id=str(content.ID),
+                path=str(content.FolderPath),
+                title=str(content.Title or ""),
+                artist=str(content.Artist or ""),
+                analysis_data_path=content.AnalysisDataPath,
+                existing_cues=existing,
+            )
+    return None
 ```
 
-- [ ] **Step 5: Run — verify PASS**
+- [ ] **Step 5: Add get_track_by_path test — append to test_reader.py**
+
+```python
+def test_get_track_by_path_found():
+    with patch("dj_cue_system.library.reader.Rekordbox6Database") as MockDB:
+        db = MockDB.return_value
+        db.get_content.return_value = [_mock_content(path="/music/track.mp3")]
+        db.get_cue.return_value = [_mock_cue(content_id="1")]
+        from dj_cue_system.library.reader import get_track_by_path
+        track = get_track_by_path("/music/track.mp3")
+    assert track is not None
+    assert track.path == "/music/track.mp3"
+    assert len(track.existing_cues) == 1
+
+
+def test_get_track_by_path_not_found():
+    with patch("dj_cue_system.library.reader.Rekordbox6Database") as MockDB:
+        db = MockDB.return_value
+        db.get_content.return_value = [_mock_content(path="/music/other.mp3")]
+        db.get_cue.return_value = []
+        from dj_cue_system.library.reader import get_track_by_path
+        track = get_track_by_path("/music/track.mp3")
+    assert track is None
+```
+
+- [ ] **Step 6: Run — verify PASS**
 
 ```bash
 pytest tests/library/test_reader.py -v
 ```
 
-Expected: 4 passed
+Expected: 6 passed
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/dj_cue_system/library/ tests/library/
@@ -2557,6 +2613,29 @@ def test_analyze_skips_tracks_with_cues(tmp_path):
          patch("dj_cue_system.cli.get_track_playlists", return_value={}):
         runner.invoke(app, ["analyze", "--library", "--config", str(cfg), "--dry-run"])
     mock_analyze.assert_not_called()
+
+
+def test_show_cues_found():
+    track = _mock_track(has_cues=True)
+    with patch("dj_cue_system.cli.get_track_by_path", return_value=track):
+        result = runner.invoke(app, ["show-cues", "/music/track.mp3"])
+    assert result.exit_code == 0
+    assert "memory cue" in result.output or "Test" in result.output
+
+
+def test_show_cues_not_found():
+    with patch("dj_cue_system.cli.get_track_by_path", return_value=None):
+        result = runner.invoke(app, ["show-cues", "/music/missing.mp3"])
+    assert result.exit_code != 0
+    assert "not found" in result.output.lower()
+
+
+def test_show_cues_no_cues():
+    track = _mock_track(has_cues=False)
+    with patch("dj_cue_system.cli.get_track_by_path", return_value=track):
+        result = runner.invoke(app, ["show-cues", "/music/track.mp3"])
+    assert result.exit_code == 0
+    assert "no cue" in result.output.lower()
 ```
 
 - [ ] **Step 2: Run — verify FAIL**
@@ -2580,7 +2659,7 @@ from rich.table import Table
 
 from dj_cue_system.rules.config import load_config, AppConfig
 from dj_cue_system.rules.engine import resolve_cues
-from dj_cue_system.library.reader import get_tracks, get_track_playlists, DEFAULT_DB_PATH
+from dj_cue_system.library.reader import get_tracks, get_track_playlists, get_track_by_path, DEFAULT_DB_PATH
 from dj_cue_system.library.models import Track
 from dj_cue_system.writers.rekordbox_xml import RekordboxXmlWriter
 from dj_cue_system.writers.dry_run import DryRunWriter
@@ -2853,6 +2932,57 @@ def backup_diff(file_a: str = typer.Argument(...), file_b: str = typer.Argument(
             console.print(f"  ~ {t.title} — {t.path}")
     if not any([result.added, result.removed, result.changed]):
         console.print("[dim]No differences.[/dim]")
+
+
+@app.command("show-cues")
+def show_cues(
+    audio_file: str = typer.Argument(...),
+    db: Optional[str] = typer.Option(None, "--db"),
+):
+    """Show cue and loop points already stored in Rekordbox for a track."""
+    track = get_track_by_path(audio_file, db_path=db)
+    if track is None:
+        console.print(f"[red]✗ Track not found in Rekordbox library:[/red] {audio_file}")
+        raise typer.Exit(1)
+
+    console.print(f"\n[bold]Track:[/bold]  {track.artist} — {track.title}")
+    console.print(f"[bold]Path:[/bold]   {track.path}\n")
+
+    memory_cues = [c for c in track.existing_cues if c.cue_type == "memory_cue"]
+    loops = [c for c in track.existing_cues if c.cue_type == "loop"]
+
+    if not memory_cues and not loops:
+        console.print("[dim]No cue or loop points found.[/dim]")
+        return
+
+    # Optionally load bar numbers from ANLZ if available
+    bar_map: dict[float, int] = {}
+    share_dir = os.path.join(os.path.dirname(db or DEFAULT_DB_PATH), "share")
+    if track.analysis_data_path:
+        dat_path = os.path.join(share_dir, track.analysis_data_path)
+        if os.path.exists(dat_path):
+            try:
+                from dj_cue_system.analysis.anlz import parse_beat_grid
+                from dj_cue_system.analysis.bar_utils import timestamp_to_bar
+                bg = parse_beat_grid(dat_path)
+                for cue in track.existing_cues:
+                    t = cue.position_seconds
+                    bar_map[t] = timestamp_to_bar(t, bg.downbeats)
+            except Exception:
+                pass
+
+    def bar_str(t: float) -> str:
+        return f"  bar {bar_map[t]}" if t in bar_map else ""
+
+    if memory_cues:
+        console.print(f"[bold]Cue points ({len(memory_cues)}):[/bold]")
+        for c in memory_cues:
+            console.print(f"  memory cue  {c.name!r:20} {c.position_seconds:.3f}s{bar_str(c.position_seconds)}")
+
+    if loops:
+        console.print(f"\n[bold]Loop points ({len(loops)}):[/bold]")
+        for c in loops:
+            console.print(f"  loop  {c.name!r:20} {c.position_seconds:.3f}s")
 
 
 @app.command()

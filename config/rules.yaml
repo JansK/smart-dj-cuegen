@@ -1,0 +1,73 @@
+settings:
+  demucs_model: htdemucs
+  bar_snap: true
+  onset_window_frames: 10
+  onset_thresholds:
+    vocal: 0.02
+    drum: 0.05
+    bass: 0.03
+    other: 0.02
+
+rulesets:
+  standard-loops:
+    rules:
+      - element: intro_start
+        type: loop
+        length_bars: 16
+        name: "Intro"
+      - element: outro_start
+        type: loop
+        length_bars: 16
+        name: "Outro"
+
+  vocal-cue:
+    rules:
+      - element: first_vocal_onset
+        type: memory_cue
+        offset_bars: -64
+        name: "Vox -64"
+        color: blue
+
+  drum-cue:
+    rules:
+      - element: first_drum_onset
+        type: memory_cue
+        offset_bars: -32
+        name: "Drums -32"
+        color: red
+
+  short-loops:
+    rules:
+      - element: intro_start
+        type: loop
+        length_bars: 8
+        name: "Intro"
+      - element: outro_start
+        type: loop
+        length_bars: 8
+        name: "Outro"
+
+  break-hunter:
+    rules:
+      - element: break_start
+        qualifier:
+          position: after_midpoint
+          min_duration_bars: 16
+          occurrence: last
+        type: memory_cue
+        offset_bars: -8
+        name: "Big Break -8"
+        color: purple
+
+playlists:
+  Deep House:
+    rulesets: [vocal-cue, standard-loops]
+  Euphoric Techno:
+    rulesets: [vocal-cue, break-hunter, standard-loops]
+  Hardgroove:
+    rulesets: [drum-cue, short-loops]
+  Melodic Techno:
+    rulesets: [vocal-cue, break-hunter, standard-loops]
+
+defaults:
+  rulesets: [standard-loops]

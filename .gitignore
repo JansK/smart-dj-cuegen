@@ -6,3 +6,6 @@ dist/
 .env
 *.DS_Store
 output.xml
+.pytest_cache/
+.coverage
+htmlcov/

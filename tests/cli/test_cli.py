@@ -95,3 +95,27 @@ def test_show_cues_no_cues():
         result = runner.invoke(app, ["show-cues", "/music/track.mp3"])
     assert result.exit_code == 0
     assert "no cue" in result.output.lower()
+
+
+def test_backup_create(tmp_path):
+    from dj_cue_system.backup.writer import BackupFile, BackupTrack
+    fake_backup = BackupFile(rekordbox_db="/db", tracks=[])
+    with patch("dj_cue_system.cli.create_backup", return_value=fake_backup), \
+         patch("dj_cue_system.cli.serialize_backup") as mock_save:
+        result = runner.invoke(app, ["backup", "create", "--output", str(tmp_path / "b.json")])
+    assert result.exit_code == 0
+    mock_save.assert_called_once()
+
+
+def test_restore_produces_xml(tmp_path):
+    from dj_cue_system.backup.writer import BackupFile, BackupTrack, BackupCue
+    fake_backup = BackupFile(
+        rekordbox_db="/db",
+        tracks=[BackupTrack(id="1", path="/music/t.mp3", artist="A", title="T",
+                            cues=[BackupCue(type="memory_cue", name="Cue", position_seconds=1.0)])]
+    )
+    out = tmp_path / "restored.xml"
+    with patch("dj_cue_system.cli.deserialize_backup", return_value=fake_backup):
+        result = runner.invoke(app, ["restore", "fake.json", "--output", str(out)])
+    assert result.exit_code == 0
+    assert out.exists()

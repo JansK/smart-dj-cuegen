@@ -256,6 +256,9 @@ def validate_config(config: str = typer.Option(DEFAULT_CONFIG, "--config")):
         )
     except typer.Exit:
         raise
+    except FileNotFoundError:
+        console.print(f"[red]✗ Config file not found: {config}[/red]")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]✗ Invalid config: {e}[/red]")
         raise typer.Exit(1)

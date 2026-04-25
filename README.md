@@ -321,6 +321,21 @@ Then import the XML in Rekordbox: **File → Import → rekordbox xml**.
 7. If something's wrong: dj-cue restore <backup-file>
 ```
 
+## Rekordbox file locations (Mac)
+
+| File / Directory | Path | Purpose |
+|---|---|---|
+| `master.db` | `~/Library/Pioneer/rekordbox/master.db` | Encrypted SQLite database — tracks, playlists, existing cues. Opened read-only by this tool. |
+| ANLZ share directory | `~/Library/Pioneer/rekordbox/share/` | Root for all ANLZ analysis files. Rekordbox writes here when you analyze a track. |
+| ANLZ files per track | `~/Library/Pioneer/rekordbox/share/<AnalysisDataPath>` | The exact path is stored in `master.db` per track (e.g. `PIONEER/USBANLZ/ab/cd1234/ANLZ0000.DAT`). |
+| `.DAT` ANLZ file | same directory as above | Beat grid (per-beat timestamps + BPM). Used by this tool for bar arithmetic. |
+| `.EXT` ANLZ file | same directory, `.EXT` extension | Phrase analysis (section labels: intro, verse, chorus…). Used for section-based rules. |
+| Rekordbox XML export | wherever you save it | Human-readable XML of your collection — an alternative read path if needed. |
+| This tool's output | `./output.xml` (configurable) | What you import back into Rekordbox via **File → Import → rekordbox xml**. |
+| Backups | `~/.dj-cue/backups/` | JSON snapshots created by `dj-cue backup create`. |
+
+ANLZ files are created automatically when you analyze a track in Rekordbox (Analysis → Analyze Track, or on import if auto-analysis is enabled). Tracks that have never been analyzed won't have ANLZ files; the tool falls back to `all-in-one` for those.
+
 ## Running tests
 
 ```bash

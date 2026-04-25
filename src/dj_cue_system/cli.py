@@ -105,15 +105,15 @@ def _make_fake_track(path: str, title: str | None = None, artist: str = "") -> T
 
 @app.command()
 def analyze(
-    audio_file: Optional[str] = typer.Argument(None),
-    library: bool = typer.Option(False, "--library"),
-    playlist: list[str] = typer.Option([], "--playlist"),
-    ruleset: Optional[str] = typer.Option(None, "--ruleset"),
-    overwrite: bool = typer.Option(False, "--overwrite"),
-    dry_run: bool = typer.Option(False, "--dry-run"),
-    config: str = typer.Option(DEFAULT_CONFIG, "--config"),
-    output: str = typer.Option("./output.xml", "--output"),
-    db: Optional[str] = typer.Option(None, "--db"),
+    audio_file: Optional[str] = typer.Argument(None, help="Path to the audio file to analyze (as it appears in your Rekordbox library). Omit when using --library or --playlist."),
+    library: bool = typer.Option(False, "--library", help="Process all tracks in your Rekordbox library. Skips tracks that already have memory cues unless --overwrite is set."),
+    playlist: list[str] = typer.Option([], "--playlist", help="Limit processing to tracks in this Rekordbox playlist. Repeatable: --playlist 'Deep House' --playlist 'Techno'."),
+    ruleset: Optional[str] = typer.Option(None, "--ruleset", help="Apply a single named ruleset from rules.yaml to all processed tracks, ignoring playlist mappings."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Re-analyze and overwrite cues on tracks that already have memory cues set."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print what cues and loops would be placed without writing any output file."),
+    config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file."),
+    output: str = typer.Option("./output.xml", "--output", help="Path for the generated rekordbox.xml. Import this file in Rekordbox via File → Import → rekordbox xml."),
+    db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected at ~/Library/Pioneer/rekordbox/master.db on Mac."),
 ):
     """Generate memory cues and loop points."""
     cfg = load_config(config)
@@ -146,9 +146,9 @@ def analyze(
 
 @app.command("show-elements")
 def show_elements(
-    audio_file: str = typer.Argument(...),
-    apply_rules: bool = typer.Option(False, "--apply-rules"),
-    config: str = typer.Option(DEFAULT_CONFIG, "--config"),
+    audio_file: str = typer.Argument(..., help="Path to the audio file to inspect."),
+    apply_rules: bool = typer.Option(False, "--apply-rules", help="Also preview which cues and loops would be placed based on the current rules config."),
+    config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file."),
 ):
     """Show detected elements for an audio file."""
     cfg = load_config(config)
@@ -187,8 +187,8 @@ def show_elements(
 
 @app.command("show-cues")
 def show_cues(
-    audio_file: str = typer.Argument(...),
-    db: Optional[str] = typer.Option(None, "--db"),
+    audio_file: str = typer.Argument(..., help="Path to the audio file (as it appears in your Rekordbox library)."),
+    db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected at ~/Library/Pioneer/rekordbox/master.db on Mac."),
 ):
     """Show cue and loop points already stored in Rekordbox for a track."""
     track = get_track_by_path(audio_file, db_path=db)
@@ -235,7 +235,7 @@ def show_cues(
 
 
 @app.command("validate-config")
-def validate_config(config: str = typer.Option(DEFAULT_CONFIG, "--config")):
+def validate_config(config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file.")):
     """Validate rules.yaml and report errors."""
     try:
         cfg = load_config(config)
@@ -267,9 +267,9 @@ def validate_config(config: str = typer.Option(DEFAULT_CONFIG, "--config")):
 
 @backup_app.command("create")
 def backup_create(
-    playlist: Optional[str] = typer.Option(None, "--playlist"),
-    output: Optional[str] = typer.Option(None, "--output"),
-    db: Optional[str] = typer.Option(None, "--db"),
+    playlist: Optional[str] = typer.Option(None, "--playlist", help="Only back up tracks in this Rekordbox playlist. Omit to back up the full library."),
+    output: Optional[str] = typer.Option(None, "--output", help="Path for the backup JSON file. Defaults to ~/.dj-cue/backups/<timestamp>.json."),
+    db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected at ~/Library/Pioneer/rekordbox/master.db on Mac."),
 ):
     """Backup cue points from master.db."""
     os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
@@ -298,7 +298,10 @@ def backup_list():
 
 
 @backup_app.command("diff")
-def backup_diff(file_a: str = typer.Argument(...), file_b: str = typer.Argument(...)):
+def backup_diff(
+    file_a: str = typer.Argument(..., help="Path to the older backup JSON file."),
+    file_b: str = typer.Argument(..., help="Path to the newer backup JSON file."),
+):
     """Show what changed between two backups."""
     old = deserialize_backup(file_a)
     new = deserialize_backup(file_b)
@@ -321,9 +324,9 @@ def backup_diff(file_a: str = typer.Argument(...), file_b: str = typer.Argument(
 
 @app.command()
 def restore(
-    backup_file: str = typer.Argument(...),
-    output: str = typer.Option("./restored.xml", "--output"),
-    tracks: list[str] = typer.Option([], "--tracks"),
+    backup_file: str = typer.Argument(..., help="Path to the backup JSON file to restore from."),
+    output: str = typer.Option("./restored.xml", "--output", help="Path for the generated rekordbox.xml. Import in Rekordbox via File → Import → rekordbox xml."),
+    tracks: list[str] = typer.Option([], "--tracks", help="Only restore cues for this audio file path. Repeatable. Omit to restore all tracks in the backup."),
 ):
     """Generate rekordbox.xml from a backup file."""
     backup = deserialize_backup(backup_file)

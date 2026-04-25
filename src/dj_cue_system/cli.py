@@ -49,7 +49,7 @@ def run_full_analysis(audio_path: str, config: AppConfig):
     return result
 
 
-def _analyze_track(track: Track, config: AppConfig):
+def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None):
     """ANLZ path if files exist, else all-in-one fallback. Demucs always runs."""
     from dj_cue_system.analysis.fallback import analyze_with_allin1
     from dj_cue_system.analysis.anlz import parse_beat_grid, parse_phrases
@@ -60,7 +60,7 @@ def _analyze_track(track: Track, config: AppConfig):
 
     result = None
     if track.analysis_data_path:
-        share_dir = os.path.join(os.path.dirname(DEFAULT_DB_PATH), "share")
+        share_dir = os.path.join(os.path.dirname(db_path or DEFAULT_DB_PATH), "share")
         dat_path = os.path.join(share_dir, track.analysis_data_path)
         ext_path = dat_path.replace(".DAT", ".EXT")
         if os.path.exists(dat_path) and os.path.exists(ext_path):
@@ -98,9 +98,9 @@ def _analyze_track(track: Track, config: AppConfig):
     return result
 
 
-def _make_fake_track(path: str) -> Track:
-    name = os.path.splitext(os.path.basename(path))[0]
-    return Track(id="0", path=path, title=name, artist="", analysis_data_path=None)
+def _make_fake_track(path: str, title: str | None = None, artist: str = "") -> Track:
+    name = title or os.path.splitext(os.path.basename(path))[0]
+    return Track(id="0", path=path, title=name, artist=artist, analysis_data_path=None)
 
 
 @app.command()
@@ -135,7 +135,7 @@ def analyze(
             if track.has_memory_cues and not overwrite:
                 continue
             with warnings.catch_warnings(record=True):
-                result = _analyze_track(track, cfg)
+                result = _analyze_track(track, cfg, db_path=db)
                 cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
             writer.write(track, cues, loops)
 
@@ -173,6 +173,9 @@ def show_elements(
         else:
             console.print(f"  {stem_name:6}: not detected")
 
+    for w in caught_warnings:
+        console.print(f"[yellow]⚠ {w.message}[/yellow]")
+
     if apply_rules:
         cues, loops = resolve_cues(result, cfg, playlists=[])
         console.print("\n[bold]Would place:[/bold]")
@@ -180,8 +183,6 @@ def show_elements(
             console.print(f"  memory cue  {cue.name!r:20} bar {cue.bar:4}  ({cue.position_seconds:.1f}s)")
         for loop in loops:
             console.print(f"  loop        {loop.name!r:20} bar {loop.start_bar} → {loop.end_bar}")
-        for w in caught_warnings:
-            console.print(f"  [yellow]⚠ {w.message}[/yellow]")
 
 
 @app.command("show-cues")
@@ -331,9 +332,7 @@ def restore(
     for bt in backup.tracks:
         if tracks and bt.path not in tracks:
             continue
-        fake_track = _make_fake_track(bt.path)
-        fake_track.title = bt.title  # type: ignore[attr-defined]
-        fake_track.artist = bt.artist  # type: ignore[attr-defined]
+        fake_track = _make_fake_track(bt.path, title=bt.title, artist=bt.artist)
         cues = [
             CuePoint(name=c.name, position_seconds=c.position_seconds or 0.0, bar=0, color=c.color)
             for c in bt.cues if c.type == "memory_cue"

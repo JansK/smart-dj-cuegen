@@ -17,9 +17,18 @@ _STEM_ONSET_ELEMENTS = {
 }
 
 
+# High-mood Rekordbox tracks use "up"/"down" labels instead of "verse"/"break".
+# verse_start/break_start rules should also match these raw labels.
+_LABEL_ALIASES: dict[str, list[str]] = {
+    "verse": ["verse", "up"],   # High-mood "up" is treated as verse
+    "break": ["break", "down"], # High-mood "down" is treated as break
+}
+
+
 def _get_sections_for_element(element: str, sections: list[Section]) -> list[Section]:
     label = element.replace("_start", "").replace("_end", "")
-    return [s for s in sections if s.label == label]
+    target_labels = _LABEL_ALIASES.get(label, [label])
+    return [s for s in sections if s.label in target_labels]
 
 
 def _apply_qualifier(

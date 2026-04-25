@@ -56,7 +56,6 @@ def test_load_config_settings_defaults(tmp_path):
     cfg_file.write_text(MINIMAL_YAML)
     config = load_config(str(cfg_file))
     assert config.settings.demucs_model == "htdemucs"
-    assert config.settings.bar_snap is True
     assert config.settings.onset_thresholds.vocal == pytest.approx(0.02)
 
 

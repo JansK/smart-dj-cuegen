@@ -72,8 +72,8 @@ def test_normalize_mid_mood_verse():
 
 
 def test_normalize_high_mood_up_down():
-    assert normalize_phrase_label("Up", "high") == "verse"
-    assert normalize_phrase_label("Down", "high") == "break"
+    assert normalize_phrase_label("Up", "high") == "up"
+    assert normalize_phrase_label("Down", "high") == "down"
 
 
 def test_normalize_universal_labels():

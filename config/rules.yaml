@@ -1,6 +1,5 @@
 settings:
   demucs_model: htdemucs
-  bar_snap: true
   onset_window_frames: 10
   onset_thresholds:
     vocal: 0.02

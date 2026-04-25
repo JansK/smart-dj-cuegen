@@ -41,7 +41,6 @@ class OnsetThresholds(BaseModel):
 
 class SettingsConfig(BaseModel):
     demucs_model: str = "htdemucs"
-    bar_snap: bool = True
     onset_window_frames: int = 10
     onset_thresholds: OnsetThresholds = OnsetThresholds()
 

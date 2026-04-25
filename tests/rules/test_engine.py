@@ -184,3 +184,26 @@ def test_playlist_ruleset_used_over_defaults():
     names = [c.name for c in cues]
     assert "PlaylistCue" in names
     assert "Default" not in names
+
+
+def test_verse_start_matches_high_mood_up():
+    """verse_start rules should match 'up' sections (High mood Rekordbox tracks)."""
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          r:
+            rules:
+              - element: verse_start
+                type: memory_cue
+                offset_bars: 0
+                name: "Verse"
+        defaults:
+          rulesets: [r]
+    """))
+    result = _make_result(sections=[
+        Section("intro", 0, 16, 0.0, 32.0),
+        Section("up", 16, 48, 32.0, 96.0),   # High-mood track
+        Section("outro", 96, 128, 192.0, 256.0),
+    ])
+    cues, loops = resolve_cues(result, cfg, playlists=[])
+    assert len(cues) == 1
+    assert cues[0].bar == 16

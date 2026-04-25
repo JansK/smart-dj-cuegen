@@ -38,8 +38,8 @@ _NORMALIZATION_MAP: dict[str, str] = {
     "verse1": "verse", "verse1b": "verse", "verse1c": "verse",
     "verse2": "verse", "verse2b": "verse", "verse2c": "verse",
     "verse3": "verse", "verse4": "verse", "verse5": "verse", "verse6": "verse",
-    "up": "verse",
-    "down": "break",
+    "up": "up",
+    "down": "down",
 }
 
 _RAW_MAP: dict[str, str] = {

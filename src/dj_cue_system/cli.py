@@ -120,8 +120,16 @@ def analyze(
     writer = DryRunWriter() if dry_run else RekordboxXmlWriter(output)
 
     if audio_file and not library and not playlist:
-        result = run_full_analysis(audio_file, cfg)
-        fake_track = _make_fake_track(audio_file)
+        # Try the Rekordbox library first so ANLZ files are used when available.
+        # Falls back to allin1 only if the track is not in the library.
+        track = get_track_by_path(audio_file, db_path=db)
+        if track:
+            with warnings.catch_warnings(record=True):
+                result = _analyze_track(track, cfg, db_path=db)
+            fake_track = _make_fake_track(audio_file, title=track.title, artist=track.artist)
+        else:
+            result = run_full_analysis(audio_file, cfg)
+            fake_track = _make_fake_track(audio_file)
         cues, loops = resolve_cues(result, cfg, playlists=[], ruleset_override=ruleset)
         writer.write(fake_track, cues, loops)
     else:
@@ -154,7 +162,11 @@ def show_elements(
     cfg = load_config(config)
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        result = run_full_analysis(audio_file, cfg)
+        track = get_track_by_path(audio_file)
+        if track:
+            result = _analyze_track(track, cfg)
+        else:
+            result = run_full_analysis(audio_file, cfg)
 
     source = "ANLZ" if result.anlz_source else "all-in-one"
     console.print(f"\n[bold]BPM:[/bold] {result.bpm:.1f} | [bold]Bars:[/bold] {result.total_bars} | [bold]Source:[/bold] {source}\n")

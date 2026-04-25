@@ -349,5 +349,5 @@ pytest
 - The Rekordbox database (`master.db`) is opened **read-only**. The tool never writes to it.
 - All writes go through XML import, which is reversible.
 - Demucs (`htdemucs`) requires ~2 GB of model weights downloaded on first run.
-- Tracks must be analyzed by Rekordbox first for ANLZ files to exist. Unanalyzed tracks fall back to `all-in-one` for beat and phrase detection.
-- `show-elements` always uses the `all-in-one` fallback (it works from a bare file path with no DB context). The `analyze` command uses ANLZ when available.
+- Tracks must be analyzed by Rekordbox first for ANLZ files to exist. Both `analyze <file>` and `show-elements <file>` look up the track in `master.db` first — if found, ANLZ is used for beat/phrase detection. If not found, the tool falls back to `allin1`.
+- **`allin1` requires Python ≤ 3.11** (its dependency `madmom` cannot build on Python 3.12+). If you're on a newer Python, `allin1` will be unavailable. This only affects tracks that are *not* in your Rekordbox library — all library tracks use ANLZ files and don't need `allin1`.

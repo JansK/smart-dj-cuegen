@@ -8,7 +8,20 @@ except Exception:  # pragma: no cover  (madmom not installed in test env)
     allin1 = None  # type: ignore[assignment]
 
 
+def allin1_available() -> bool:
+    return allin1 is not None
+
+
 def analyze_with_allin1(audio_path: str) -> AnalysisResult:
+    if allin1 is None:
+        raise RuntimeError(
+            "The 'allin1' package is not available (its dependency 'madmom' failed to install — "
+            "madmom does not support Python 3.12+).\n\n"
+            "For tracks in your Rekordbox library, use --library or --playlist instead of passing "
+            "a bare file path. That path uses Rekordbox's own ANLZ analysis files and does not "
+            "require allin1.\n\n"
+            "For tracks not yet in Rekordbox, analyze them in Rekordbox first, then re-run."
+        )
     result = allin1.analyze(audio_path)
 
     downbeats: list[float] = list(result.downbeats)

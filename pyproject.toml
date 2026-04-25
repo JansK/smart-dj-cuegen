@@ -6,6 +6,9 @@ build-backend = "hatchling.build"
 name = "smart-dj-cuegen"
 version = "0.1.0"
 requires-python = ">=3.11"
+# Note: allin1 depends on madmom, which requires Python <=3.11 to build from source.
+# allin1 is only used as a fallback for tracks not in your Rekordbox library.
+# Tracks already analyzed by Rekordbox use ANLZ files instead and do not require allin1.
 dependencies = [
     "pyrekordbox>=0.4.4",
     "sqlcipher3-wheels>=0.5.7",

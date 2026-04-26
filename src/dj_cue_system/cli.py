@@ -154,10 +154,13 @@ def analyze(
             for track in tracks:
                 if track.has_memory_cues and not overwrite:
                     continue
-                with warnings.catch_warnings(record=True):
-                    result = _analyze_track(track, cfg, db_path=db, hq=hq)
-                    cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
-                writer.write(track, cues, loops)
+                try:
+                    with warnings.catch_warnings(record=True):
+                        result = _analyze_track(track, cfg, db_path=db, hq=hq)
+                        cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
+                    writer.write(track, cues, loops)
+                except RuntimeError as e:
+                    console.print(f"[yellow]⚠ Skipping {track.title!r}: {e}[/yellow]")
     except FileNotFoundError as e:
         console.print(f"[red]✗ Database not found:[/red] {e}")
         raise typer.Exit(1)

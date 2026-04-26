@@ -119,33 +119,37 @@ def analyze(
     cfg = load_config(config)
     writer = DryRunWriter() if dry_run else RekordboxXmlWriter(output)
 
-    if audio_file and not library and not playlist:
-        # Try the Rekordbox library first so ANLZ files are used when available.
-        # Falls back to allin1 only if the track is not in the library.
-        track = get_track_by_path(audio_file, db_path=db)
-        if track:
-            with warnings.catch_warnings(record=True):
-                result = _analyze_track(track, cfg, db_path=db)
-            fake_track = _make_fake_track(audio_file, title=track.title, artist=track.artist)
+    try:
+        if audio_file and not library and not playlist:
+            # Try the Rekordbox library first so ANLZ files are used when available.
+            # Falls back to allin1 only if the track is not in the library.
+            track = get_track_by_path(audio_file, db_path=db)
+            if track:
+                with warnings.catch_warnings(record=True):
+                    result = _analyze_track(track, cfg, db_path=db)
+                fake_track = _make_fake_track(audio_file, title=track.title, artist=track.artist)
+            else:
+                result = run_full_analysis(audio_file, cfg)
+                fake_track = _make_fake_track(audio_file)
+            cues, loops = resolve_cues(result, cfg, playlists=[], ruleset_override=ruleset)
+            writer.write(fake_track, cues, loops)
         else:
-            result = run_full_analysis(audio_file, cfg)
-            fake_track = _make_fake_track(audio_file)
-        cues, loops = resolve_cues(result, cfg, playlists=[], ruleset_override=ruleset)
-        writer.write(fake_track, cues, loops)
-    else:
-        tracks = get_tracks(db)
-        playlist_map = get_track_playlists(db)
-        for t in tracks:
-            t.playlists = playlist_map.get(t.id, [])
-        if playlist:
-            tracks = [t for t in tracks if any(p in t.playlists for p in playlist)]
-        for track in tracks:
-            if track.has_memory_cues and not overwrite:
-                continue
-            with warnings.catch_warnings(record=True):
-                result = _analyze_track(track, cfg, db_path=db)
-                cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
-            writer.write(track, cues, loops)
+            tracks = get_tracks(db)
+            playlist_map = get_track_playlists(db)
+            for t in tracks:
+                t.playlists = playlist_map.get(t.id, [])
+            if playlist:
+                tracks = [t for t in tracks if any(p in t.playlists for p in playlist)]
+            for track in tracks:
+                if track.has_memory_cues and not overwrite:
+                    continue
+                with warnings.catch_warnings(record=True):
+                    result = _analyze_track(track, cfg, db_path=db)
+                    cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
+                writer.write(track, cues, loops)
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ Database not found:[/red] {e}")
+        raise typer.Exit(1)
 
     writer.finalize()
     if not dry_run:
@@ -203,7 +207,11 @@ def show_cues(
     db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected at ~/Library/Pioneer/rekordbox/master.db on Mac."),
 ):
     """Show cue and loop points already stored in Rekordbox for a track."""
-    track = get_track_by_path(audio_file, db_path=db)
+    try:
+        track = get_track_by_path(audio_file, db_path=db)
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ Database not found:[/red] {e}")
+        raise typer.Exit(1)
     if track is None:
         console.print(f"[red]✗ Track not found in Rekordbox library:[/red] {audio_file}")
         raise typer.Exit(1)
@@ -288,7 +296,11 @@ def backup_create(
     from datetime import datetime, timezone
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
     path = output or os.path.join(DEFAULT_BACKUP_DIR, f"{ts}.json")
-    backup = create_backup(db_path=db, playlist_filter=playlist)
+    try:
+        backup = create_backup(db_path=db, playlist_filter=playlist)
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ Database not found:[/red] {e}")
+        raise typer.Exit(1)
     serialize_backup(backup, path)
     console.print(f"[green]Backup saved to {path}[/green] ({len(backup.tracks)} tracks)")
 

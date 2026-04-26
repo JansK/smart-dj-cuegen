@@ -29,34 +29,38 @@ DEFAULT_CONFIG = "config/rules.yaml"
 DEFAULT_BACKUP_DIR = os.path.expanduser("~/.dj-cue/backups")
 
 
-def run_full_analysis(audio_path: str, config: AppConfig):
-    """Analyze a bare audio file: all-in-one for structure, Demucs for stems."""
+def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False):
+    """Analyze a bare audio file: all-in-one for structure, fast/Demucs for stems."""
     from dj_cue_system.analysis.fallback import analyze_with_allin1
-    from dj_cue_system.analysis.separation import separate_stems
-    from dj_cue_system.analysis.onset import detect_onset_rms
     from dj_cue_system.analysis.models import StemOnsets
 
     result = analyze_with_allin1(audio_path)
-    stems = separate_stems(audio_path, model_name=config.settings.demucs_model)
     thresholds = config.settings.onset_thresholds
     w = config.settings.onset_window_frames
-    result.stem_onsets = StemOnsets(
-        vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
-        drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
-        bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
-        other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
-    )
+
+    if hq:
+        from dj_cue_system.analysis.separation import separate_stems
+        from dj_cue_system.analysis.onset import detect_onset_rms
+        stems = separate_stems(audio_path, model_name=config.settings.demucs_model)
+        result.stem_onsets = StemOnsets(
+            vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
+            drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
+            bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
+            other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
+        )
+    else:
+        from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
+        result.stem_onsets = detect_stem_onsets_fast(audio_path, thresholds, w)
+
     return result
 
 
-def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None):
-    """ANLZ path if files exist, else all-in-one fallback. Demucs always runs."""
+def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None, hq: bool = False):
+    """ANLZ path if files exist, else all-in-one fallback. Fast stem detection by default."""
     from dj_cue_system.analysis.fallback import analyze_with_allin1
     from dj_cue_system.analysis.anlz import parse_beat_grid, parse_phrases
     from dj_cue_system.analysis.assembler import build_sections
     from dj_cue_system.analysis.models import AnalysisResult, StemOnsets
-    from dj_cue_system.analysis.separation import separate_stems
-    from dj_cue_system.analysis.onset import detect_onset_rms
 
     result = None
     if track.analysis_data_path:
@@ -86,15 +90,21 @@ def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None):
     if result is None:
         result = analyze_with_allin1(track.path)
 
-    stems = separate_stems(track.path, model_name=config.settings.demucs_model)
     thresholds = config.settings.onset_thresholds
     w = config.settings.onset_window_frames
-    result.stem_onsets = StemOnsets(
-        vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
-        drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
-        bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
-        other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
-    )
+    if hq:
+        from dj_cue_system.analysis.separation import separate_stems
+        from dj_cue_system.analysis.onset import detect_onset_rms
+        stems = separate_stems(track.path, model_name=config.settings.demucs_model)
+        result.stem_onsets = StemOnsets(
+            vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
+            drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
+            bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
+            other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
+        )
+    else:
+        from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
+        result.stem_onsets = detect_stem_onsets_fast(track.path, thresholds, w)
     return result
 
 
@@ -114,6 +124,7 @@ def analyze(
     config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file."),
     output: str = typer.Option("./output.xml", "--output", help="Path for the generated rekordbox.xml. Import this file in Rekordbox via File → Import → rekordbox xml."),
     db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected at ~/Library/Pioneer/rekordbox/master.db on Mac."),
+    hq: bool = typer.Option(False, "--hq", help="Use Demucs neural-network stem separation for higher-accuracy onset detection (slow — several minutes per track)."),
 ):
     """Generate memory cues and loop points."""
     cfg = load_config(config)
@@ -126,10 +137,10 @@ def analyze(
             track = get_track_by_path(audio_file, db_path=db)
             if track:
                 with warnings.catch_warnings(record=True):
-                    result = _analyze_track(track, cfg, db_path=db)
+                    result = _analyze_track(track, cfg, db_path=db, hq=hq)
                 fake_track = _make_fake_track(audio_file, title=track.title, artist=track.artist)
             else:
-                result = run_full_analysis(audio_file, cfg)
+                result = run_full_analysis(audio_file, cfg, hq=hq)
                 fake_track = _make_fake_track(audio_file)
             cues, loops = resolve_cues(result, cfg, playlists=[], ruleset_override=ruleset)
             writer.write(fake_track, cues, loops)
@@ -144,7 +155,7 @@ def analyze(
                 if track.has_memory_cues and not overwrite:
                     continue
                 with warnings.catch_warnings(record=True):
-                    result = _analyze_track(track, cfg, db_path=db)
+                    result = _analyze_track(track, cfg, db_path=db, hq=hq)
                     cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
                 writer.write(track, cues, loops)
     except FileNotFoundError as e:
@@ -161,6 +172,7 @@ def show_elements(
     audio_file: str = typer.Argument(..., help="Path to the audio file to inspect."),
     apply_rules: bool = typer.Option(False, "--apply-rules", help="Also preview which cues and loops would be placed based on the current rules config."),
     config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file."),
+    hq: bool = typer.Option(False, "--hq", help="Use Demucs neural-network stem separation for higher-accuracy onset detection (slow — several minutes per track)."),
 ):
     """Show detected elements for an audio file."""
     cfg = load_config(config)
@@ -168,9 +180,9 @@ def show_elements(
         warnings.simplefilter("always")
         track = get_track_by_path(audio_file)
         if track:
-            result = _analyze_track(track, cfg)
+            result = _analyze_track(track, cfg, hq=hq)
         else:
-            result = run_full_analysis(audio_file, cfg)
+            result = run_full_analysis(audio_file, cfg, hq=hq)
 
     source = "ANLZ" if result.anlz_source else "all-in-one"
     console.print(f"\n[bold]BPM:[/bold] {result.bpm:.1f} | [bold]Bars:[/bold] {result.total_bars} | [bold]Source:[/bold] {source}\n")

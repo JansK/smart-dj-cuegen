@@ -35,11 +35,8 @@ def separate_stems(audio_path: str, model_name: str = "htdemucs") -> StemAudio:
 
     wav = wav.unsqueeze(0)  # (1, channels, samples)
 
-    device = (
-        "mps" if torch.backends.mps.is_available()
-        else "cuda" if torch.cuda.is_available()
-        else "cpu"
-    )
+    # MPS (Apple Silicon) does not support htdemucs (output channels > 65536).
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     with torch.no_grad():
         sources = apply_model(model, wav, device=device)

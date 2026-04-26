@@ -19,7 +19,8 @@ Tracks that already have memory cues are skipped by default (use `--overwrite` t
 
 - Python 3.11+
 - Rekordbox 6 or 7 installed on Mac (for `master.db` and ANLZ files)
-- Apple Silicon (M1/M2/M3) recommended — Demucs runs on MPS. CPU fallback works but is slow (~10 min/track).
+- **Rekordbox must be closed** when running `show-elements` or `analyze` — torchaudio cannot decode AIFF/WAV files while Rekordbox holds them open. Other commands (`show-cues`, `backup`, `restore`) work with Rekordbox running.
+- Apple Silicon (M1/M2/M3) recommended — Demucs runs on CPU (MPS is not supported by htdemucs). Expect ~5–10 min/track on CPU.
 
 ## Installation
 

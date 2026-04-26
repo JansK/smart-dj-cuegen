@@ -18,17 +18,29 @@ class PhraseEntry:
 
 def parse_beat_grid(dat_path: str) -> BeatGridResult:
     anlz = AnlzFile.parse_file(dat_path)
-    tag = anlz.getone("PQTZ")
-    beats = tag.beats
+    tag = anlz.get_tag("PQTZ")
 
-    downbeats = [b.time / 1000.0 for b in beats if b.beat_number == 1]
+    # .beats is a numpy array of bar-position values (1, 2, 3, 4)
+    # .times is a numpy array of timestamps in seconds
+    # .bpms is a numpy array of BPM values (already in BPM, not ×100)
+    downbeats = [float(t) for b, t in zip(tag.beats, tag.times) if b == 1]
     total_bars = len(downbeats)
-    bpm = beats[0].tempo / 100.0 if beats else 0.0
+    bpm = float(tag.bpms[0]) if len(tag.bpms) > 0 else 0.0
 
     return BeatGridResult(bpm=bpm, downbeats=downbeats, total_bars=total_bars)
 
 
 _MOOD_INT_TO_STR = {1: "high", 2: "mid", 3: "low"}
+
+# PSSI kind → phrase label for each mood tier.
+# mood=1 (high): 1=intro 2=up 3=down 4=chorus 5=verse 6=bridge 7=outro
+# mood=2 (mid):  1=intro 2=verse1 3=verse2 4=bridge 5=outro
+# mood=3 (low):  1=intro 2=verse1 3=verse2 4=bridge 5=outro
+_PSSI_KIND_TO_LABEL: dict[int, dict[int, str]] = {
+    1: {1: "intro", 2: "up", 3: "down", 4: "chorus", 5: "verse1", 6: "bridge", 7: "outro"},
+    2: {1: "intro", 2: "verse1", 3: "verse2", 4: "bridge", 5: "outro"},
+    3: {1: "intro", 2: "verse1", 3: "verse2", 4: "bridge", 5: "outro"},
+}
 
 _NORMALIZATION_MAP: dict[str, str] = {
     "intro": "intro",
@@ -57,12 +69,14 @@ def normalize_phrase_label(label: str, mood: str, normalized: bool = True) -> st
 
 def parse_phrases(ext_path: str) -> list[PhraseEntry]:
     anlz = AnlzFile.parse_file(ext_path)
-    tag = anlz.getone("PPHD")
-    mood_str = _MOOD_INT_TO_STR.get(tag.mood, "mid")
+    tag = anlz.get_tag("PSSI")
+    mood_int = tag.content.mood
+    mood_str = _MOOD_INT_TO_STR.get(mood_int, "mid")
+    kind_map = _PSSI_KIND_TO_LABEL.get(mood_int, _PSSI_KIND_TO_LABEL[2])
 
     result = []
-    for entry in tag.phrases:
-        raw = str(entry.kind).split(".")[-1]
+    for entry in tag.content.entries:
+        raw = kind_map.get(entry.kind, f"kind{entry.kind}")
         normalized = normalize_phrase_label(raw, mood_str)
         result.append(PhraseEntry(beat=entry.beat, raw_label=normalized, mood=mood_str))
     return result

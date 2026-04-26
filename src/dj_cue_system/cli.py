@@ -61,15 +61,15 @@ def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None):
     result = None
     if track.analysis_data_path:
         share_dir = os.path.join(os.path.dirname(db_path or DEFAULT_DB_PATH), "share")
-        dat_path = os.path.join(share_dir, track.analysis_data_path)
+        dat_path = os.path.join(share_dir, track.analysis_data_path.lstrip("/"))
         ext_path = dat_path.replace(".DAT", ".EXT")
         if os.path.exists(dat_path) and os.path.exists(ext_path):
             try:
                 from pyrekordbox.anlz import AnlzFile
                 beat_grid = parse_beat_grid(dat_path)
                 phrases = parse_phrases(ext_path)
-                tag = AnlzFile.parse_file(dat_path).getone("PQTZ")
-                all_beat_times = [b.time / 1000.0 for b in tag.beats]
+                tag = AnlzFile.parse_file(dat_path).get_tag("PQTZ")
+                all_beat_times = list(tag.times)
                 sections = build_sections(phrases, beat_grid, all_beat_times)
                 result = AnalysisResult(
                     bpm=beat_grid.bpm,
@@ -229,7 +229,7 @@ def show_cues(
     bar_map: dict[float, int] = {}
     if track.analysis_data_path:
         share_dir = os.path.join(os.path.dirname(db or DEFAULT_DB_PATH), "share")
-        dat_path = os.path.join(share_dir, track.analysis_data_path)
+        dat_path = os.path.join(share_dir, track.analysis_data_path.lstrip("/"))
         if os.path.exists(dat_path):
             try:
                 from dj_cue_system.analysis.anlz import parse_beat_grid

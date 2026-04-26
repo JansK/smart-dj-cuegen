@@ -33,13 +33,27 @@ def parse_beat_grid(dat_path: str) -> BeatGridResult:
 _MOOD_INT_TO_STR = {1: "high", 2: "mid", 3: "low"}
 
 # PSSI kind → phrase label for each mood tier.
-# mood=1 (high): 1=intro 2=up 3=down 4=chorus 5=verse 6=bridge 7=outro
-# mood=2 (mid):  1=intro 2=verse1 3=verse2 4=bridge 5=outro
-# mood=3 (low):  1=intro 2=verse1 3=verse2 4=bridge 5=outro
+# Derived from library-wide survey + Pioneer ANLZ format documentation.
+# mood=1 (high):  kinds seen in practice: 1,2,3,5,6
+# mood=2 (mid):   kinds seen in practice: 1-10
+# mood=3 (low):   kinds seen in practice: 1-9
 _PSSI_KIND_TO_LABEL: dict[int, dict[int, str]] = {
-    1: {1: "intro", 2: "up", 3: "down", 4: "chorus", 5: "verse1", 6: "bridge", 7: "outro"},
-    2: {1: "intro", 2: "verse1", 3: "verse2", 4: "bridge", 5: "outro"},
-    3: {1: "intro", 2: "verse1", 3: "verse2", 4: "bridge", 5: "outro"},
+    1: {
+        1: "intro", 2: "up", 3: "down", 4: "chorus",
+        5: "verse1", 6: "bridge", 7: "outro",
+    },
+    2: {
+        1: "intro",
+        2: "verse1", 3: "verse2", 4: "bridge", 5: "outro",
+        6: "verse3", 7: "verse4", 8: "chorus",
+        9: "up", 10: "outro",
+    },
+    3: {
+        1: "intro",
+        2: "verse1", 3: "verse2", 4: "bridge", 5: "outro",
+        6: "verse3", 7: "verse4", 8: "chorus",
+        9: "up",
+    },
 }
 
 _NORMALIZATION_MAP: dict[str, str] = {

@@ -121,16 +121,16 @@ Establish and validate a backup before anything else. If any later test causes y
 
 | # | Command | Expected | Status | Notes |
 |---|---|---|---|---|
-| 6.1 | `dj-cue analyze --playlist $PL_NONE --dry-run` | All tracks processed, dry run output | ⏳ | |
-| 6.2 | `dj-cue analyze --playlist $PL_ALL --dry-run` | "0 written" or all tracks skipped (have cues) | ⏳ | |
-| 6.3 | `dj-cue analyze --playlist $PL_ALL --overwrite --dry-run` | All tracks processed (overwrite forces) | ⏳ | |
-| 6.4 | `dj-cue analyze --playlist $PL_MIXED --dry-run` | Some skipped, some processed | ⏳ | |
-| 6.5 | `dj-cue analyze --playlist $PL_NONE --ruleset break-hunter --dry-run` | Only break-hunter rules applied to each track | ⏳ | |
-| 6.6 | `dj-cue analyze --playlist $PL_NONE --output /tmp/pl.xml` | XML written | ⏳ | |
-| 6.7 | `grep -c "<TRACK " /tmp/pl.xml` | Count > 0, matches tracks-in-PL_NONE count | ⏳ | Verify 6.6 output |
-| 6.8 | `dj-cue analyze --playlist $PL_NONE --playlist $PL_MIXED --dry-run` | Tracks from union of both playlists processed | ⏳ | Multi-playlist filter |
-| 6.9 | `dj-cue analyze --playlist "playlist_does_not_exist" --dry-run` | 0 tracks processed (empty filter result) | ⏳ | Non-existent playlist name |
-| 6.10 | `dj-cue analyze --playlist $PL_NONE --output /tmp/pl_overwrite.xml && dj-cue analyze --playlist $PL_NONE --output /tmp/pl_overwrite.xml` | Second run overwrites without error | ⏳ | Output file exists |
+| 6.1 | `dj-cue analyze --playlist $PL_NONE --dry-run` | All tracks processed, dry run output | ✅ | 3 tracks, intro loops placed |
+| 6.2 | `dj-cue analyze --playlist $PL_ALL --dry-run` | "0 written" or all tracks skipped (have cues) | ✅ | All 3 skipped, "Dry run — no files written." |
+| 6.3 | `dj-cue analyze --playlist $PL_ALL --overwrite --dry-run` | All tracks processed (overwrite forces) | ✅ | All 3 processed |
+| 6.4 | `dj-cue analyze --playlist $PL_MIXED --dry-run` | Some skipped, some processed | ✅ | 2 processed (no cues), rest skipped |
+| 6.5 | `dj-cue analyze --playlist $PL_NONE --ruleset break-hunter --dry-run` | Only break-hunter rules applied to each track | ✅ | 1/3 tracks got a cue; others no matching break section |
+| 6.6 | `dj-cue analyze --playlist $PL_NONE --output /tmp/pl.xml` | XML written | ✅ | |
+| 6.7 | `grep -c "<TRACK " /tmp/pl.xml` | Count > 0, matches tracks-in-PL_NONE count | ✅ | 3 |
+| 6.8 | `dj-cue analyze --playlist $PL_NONE --playlist $PL_MIXED --dry-run` | Tracks from union of both playlists processed | ✅ | Tracks from both playlists processed (output head-trimmed); exit=0 |
+| 6.9 | `dj-cue analyze --playlist "playlist_does_not_exist" --dry-run` | 0 tracks processed (empty filter result) | ✅ | "Dry run — no files written." |
+| 6.10 | `dj-cue analyze --playlist $PL_NONE --output /tmp/pl_overwrite.xml && dj-cue analyze --playlist $PL_NONE --output /tmp/pl_overwrite.xml` | Second run overwrites without error | ✅ | Both runs wrote successfully |
 
 ---
 
@@ -170,9 +170,9 @@ Clean up test artifacts.
 
 | # | Command | Status | Notes |
 |---|---|---|---|
-| T.1 | `rm -f /tmp/bk_safety.json /tmp/bk_safety_restored.xml /tmp/bk1.json /tmp/bk_pl.json /tmp/bk_empty.json /tmp/single.xml /tmp/pl.xml /tmp/pl_overwrite.xml /tmp/restored.xml /tmp/r2.xml /tmp/r3.xml /tmp/r4.xml /tmp/dangling.yaml /tmp/malformed.yaml` | ⏳ | Remove /tmp artifacts |
-| T.2 | `rm "$BACKUP_FILE"` (using filename recorded in 7.4) | ⏳ | Remove default-location backup |
-| T.3 | If any test caused the user to import a bad XML to Rekordbox: `dj-cue restore /tmp/bk_safety.json --output /tmp/recovery.xml` then re-import in Rekordbox | ⏳ | Recovery path |
+| T.1 | `rm -f /tmp/bk_safety.json /tmp/bk_safety_restored.xml /tmp/bk1.json /tmp/bk_pl.json /tmp/bk_empty.json /tmp/single.xml /tmp/pl.xml /tmp/pl_overwrite.xml /tmp/restored.xml /tmp/r2.xml /tmp/r3.xml /tmp/r4.xml /tmp/dangling.yaml /tmp/malformed.yaml` | ✅ | Remove /tmp artifacts |
+| T.2 | `rm "$BACKUP_FILE"` (using filename recorded in 7.4) | ✅ | Removed `~/.dj-cue/backups/2026-04-26T16-06-56Z.json` |
+| T.3 | If any test caused the user to import a bad XML to Rekordbox: `dj-cue restore /tmp/bk_safety.json --output /tmp/recovery.xml` then re-import in Rekordbox | N/A | No XML was imported into Rekordbox during testing |
 
 ---
 

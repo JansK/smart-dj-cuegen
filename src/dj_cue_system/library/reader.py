@@ -56,9 +56,8 @@ def get_track_by_path(audio_path: str, db_path: str | None = None) -> Track | No
 def get_track_playlists(db_path: str | None = None) -> dict[str, list[str]]:
     """Return {track_id: [playlist_name, ...]} mapping."""
     db = Rekordbox6Database(db_path or DEFAULT_DB_PATH)
-    playlists_by_id = {p.ID: p.Name for p in db.get_playlist()}
     result: dict[str, list[str]] = {}
-    for pt in db.get_playlist_track():
-        pl_name = playlists_by_id.get(pt.PlaylistID, "")
-        result.setdefault(str(pt.ContentID), []).append(pl_name)
+    for playlist in db.get_playlist():
+        for content in db.get_playlist_contents(playlist.ID):
+            result.setdefault(str(content.ID), []).append(playlist.Name)
     return result

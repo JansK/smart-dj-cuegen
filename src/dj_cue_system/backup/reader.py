@@ -13,11 +13,11 @@ def create_backup(
     content_ids_in_playlist: set[str] | None = None
     if playlist_filter:
         playlists = {p.ID: p.Name for p in db.get_playlist()}
-        target_ids = {pid for pid, name in playlists.items() if name == playlist_filter}
+        target_ids = [pid for pid, name in playlists.items() if name == playlist_filter]
         content_ids_in_playlist = {
-            str(pt.ContentID)
-            for pt in db.get_playlist_track()
-            if pt.PlaylistID in target_ids
+            str(content.ID)
+            for pid in target_ids
+            for content in db.get_playlist_contents(pid)
         }
 
     all_cues = db.get_cue()

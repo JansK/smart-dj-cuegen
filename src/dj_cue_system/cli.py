@@ -327,8 +327,12 @@ def backup_diff(
     file_b: str = typer.Argument(..., help="Path to the newer backup JSON file."),
 ):
     """Show what changed between two backups."""
-    old = deserialize_backup(file_a)
-    new = deserialize_backup(file_b)
+    try:
+        old = deserialize_backup(file_a)
+        new = deserialize_backup(file_b)
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ Backup file not found:[/red] {e}")
+        raise typer.Exit(1)
     result = diff_backups(old, new)
     if result.added:
         console.print(f"\n[green]Added ({len(result.added)} tracks):[/green]")
@@ -353,7 +357,11 @@ def restore(
     tracks: list[str] = typer.Option([], "--tracks", help="Only restore cues for this audio file path. Repeatable. Omit to restore all tracks in the backup."),
 ):
     """Generate rekordbox.xml from a backup file."""
-    backup = deserialize_backup(backup_file)
+    try:
+        backup = deserialize_backup(backup_file)
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ Backup file not found:[/red] {e}")
+        raise typer.Exit(1)
     writer = RekordboxXmlWriter(output)
     from dj_cue_system.writers.base import CuePoint, LoopPoint
     for bt in backup.tracks:

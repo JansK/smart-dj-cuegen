@@ -49,7 +49,7 @@ def test_validate_config_invalid(tmp_path):
 def test_show_elements(tmp_path):
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
-    with patch("dj_cue_system.cli.run_full_analysis", return_value=_mock_result()):
+    with patch("dj_cue_system.cli.run_full_analysis", return_value=(_mock_result(), None)):
         result = runner.invoke(app, ["show-elements", "/music/track.mp3", "--config", str(cfg)])
     assert result.exit_code == 0
     assert "126.0" in result.output
@@ -59,7 +59,7 @@ def test_show_elements(tmp_path):
 def test_analyze_single_dry_run(tmp_path):
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets:\n  r:\n    rules: []\ndefaults:\n  rulesets: [r]\n")
-    with patch("dj_cue_system.cli.run_full_analysis", return_value=_mock_result()), \
+    with patch("dj_cue_system.cli.run_full_analysis", return_value=(_mock_result(), None)), \
          patch("dj_cue_system.cli.get_tracks", return_value=[_mock_track()]), \
          patch("dj_cue_system.cli.get_track_playlists", return_value={"1": ["Deep House"]}):
         result = runner.invoke(app, ["analyze", "/music/track.mp3", "--config", str(cfg), "--dry-run"])

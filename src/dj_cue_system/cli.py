@@ -29,34 +29,73 @@ DEFAULT_CONFIG = "config/rules.yaml"
 DEFAULT_BACKUP_DIR = os.path.expanduser("~/.dj-cue/backups")
 
 
-def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False):
-    """Analyze a bare audio file: all-in-one for structure, fast/Demucs for stems."""
-    from dj_cue_system.analysis.fallback import analyze_with_allin1
-    from dj_cue_system.analysis.models import StemOnsets
+def _get_stem_onsets(
+    audio_path: str,
+    config: AppConfig,
+    hq: bool,
+    force: bool = False,
+) -> tuple["StemOnsets", str | None]:
+    """Return (StemOnsets, cache_source).
 
-    result = analyze_with_allin1(audio_path)
+    cache_source is the source string ("demucs" or "librosa") when returning
+    a cached result, or None when freshly computed (and saved to cache).
+    force=True bypasses the cache read (used by stems run).
+    """
+    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.stems import cache as stems_cache
+
+    if not force:
+        cached = stems_cache.load(audio_path)
+        if cached is not None:
+            onsets, source = cached
+            if hq and source == "librosa":
+                console.print(
+                    f"[yellow]⚠ Using cached librosa result for "
+                    f"{os.path.basename(audio_path)!r}; run "
+                    f'`dj-cue stems run --path "{audio_path}"` '
+                    f"to compute Demucs stems[/yellow]"
+                )
+            return onsets, source
+
     thresholds = config.settings.onset_thresholds
     w = config.settings.onset_window_frames
-
     if hq:
         from dj_cue_system.analysis.separation import separate_stems
         from dj_cue_system.analysis.onset import detect_onset_rms
         stems = separate_stems(audio_path, model_name=config.settings.demucs_model)
-        result.stem_onsets = StemOnsets(
+        onsets = StemOnsets(
             vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
             drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
             bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
             other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
         )
+        source = "demucs"
     else:
         from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
-        result.stem_onsets = detect_stem_onsets_fast(audio_path, thresholds, w)
+        onsets = detect_stem_onsets_fast(audio_path, thresholds, w)
+        source = "librosa"
 
-    return result
+    stems_cache.save(audio_path, onsets, source)
+    return onsets, None
 
 
-def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None, hq: bool = False):
-    """ANLZ path if files exist, else all-in-one fallback. Fast stem detection by default."""
+def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False) -> tuple["AnalysisResult", str | None]:
+    """Analyze a bare audio file and return (result, cache_source)."""
+    from dj_cue_system.analysis.fallback import analyze_with_allin1
+
+    result = analyze_with_allin1(audio_path)
+    onsets, cache_source = _get_stem_onsets(audio_path, config, hq)
+    result.stem_onsets = onsets
+    return result, cache_source
+
+
+def _analyze_track(
+    track: Track,
+    config: AppConfig,
+    db_path: str | None = None,
+    hq: bool = False,
+) -> tuple["AnalysisResult", str | None]:
+    """ANLZ path if files exist, else all-in-one fallback. Returns (result, cache_source)."""
     from dj_cue_system.analysis.fallback import analyze_with_allin1
     from dj_cue_system.analysis.anlz import parse_beat_grid, parse_phrases
     from dj_cue_system.analysis.assembler import build_sections
@@ -90,22 +129,9 @@ def _analyze_track(track: Track, config: AppConfig, db_path: str | None = None, 
     if result is None:
         result = analyze_with_allin1(track.path)
 
-    thresholds = config.settings.onset_thresholds
-    w = config.settings.onset_window_frames
-    if hq:
-        from dj_cue_system.analysis.separation import separate_stems
-        from dj_cue_system.analysis.onset import detect_onset_rms
-        stems = separate_stems(track.path, model_name=config.settings.demucs_model)
-        result.stem_onsets = StemOnsets(
-            vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
-            drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
-            bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
-            other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
-        )
-    else:
-        from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
-        result.stem_onsets = detect_stem_onsets_fast(track.path, thresholds, w)
-    return result
+    onsets, cache_source = _get_stem_onsets(track.path, config, hq)
+    result.stem_onsets = onsets
+    return result, cache_source
 
 
 def _make_fake_track(path: str, title: str | None = None, artist: str = "") -> Track:
@@ -137,10 +163,10 @@ def analyze(
             track = get_track_by_path(audio_file, db_path=db)
             if track:
                 with warnings.catch_warnings(record=True):
-                    result = _analyze_track(track, cfg, db_path=db, hq=hq)
+                    result, _ = _analyze_track(track, cfg, db_path=db, hq=hq)
                 fake_track = _make_fake_track(audio_file, title=track.title, artist=track.artist)
             else:
-                result = run_full_analysis(audio_file, cfg, hq=hq)
+                result, _ = run_full_analysis(audio_file, cfg, hq=hq)
                 fake_track = _make_fake_track(audio_file)
             cues, loops = resolve_cues(result, cfg, playlists=[], ruleset_override=ruleset)
             writer.write(fake_track, cues, loops)
@@ -156,7 +182,7 @@ def analyze(
                     continue
                 try:
                     with warnings.catch_warnings(record=True):
-                        result = _analyze_track(track, cfg, db_path=db, hq=hq)
+                        result, _ = _analyze_track(track, cfg, db_path=db, hq=hq)
                         cues, loops = resolve_cues(result, cfg, playlists=track.playlists, ruleset_override=ruleset)
                     writer.write(track, cues, loops)
                 except RuntimeError as e:
@@ -183,9 +209,9 @@ def show_elements(
         warnings.simplefilter("always")
         track = get_track_by_path(audio_file)
         if track:
-            result = _analyze_track(track, cfg, hq=hq)
+            result, cache_source = _analyze_track(track, cfg, hq=hq)
         else:
-            result = run_full_analysis(audio_file, cfg, hq=hq)
+            result, cache_source = run_full_analysis(audio_file, cfg, hq=hq)
 
     source = "ANLZ" if result.anlz_source else "all-in-one"
     console.print(f"\n[bold]BPM:[/bold] {result.bpm:.1f} | [bold]Bars:[/bold] {result.total_bars} | [bold]Source:[/bold] {source}\n")
@@ -194,7 +220,8 @@ def show_elements(
         pct = int(s.position_fraction(result.total_bars) * 100)
         console.print(f"  [{s.start_bar:4} - {s.end_bar:4}] {s.label}  ({s.duration_bars} bars, {pct}%)")
 
-    console.print("\n[bold]Stem onsets:[/bold]")
+    cache_label = f"  [dim](cached · {cache_source})[/dim]" if cache_source else ""
+    console.print(f"\n[bold]Stem onsets:[/bold]{cache_label}")
     so = result.stem_onsets
     for stem_name, val in [("vocal", so.vocal), ("drum", so.drum), ("bass", so.bass), ("other", so.other)]:
         if val is not None:

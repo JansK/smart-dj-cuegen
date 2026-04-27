@@ -6,6 +6,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
 
 from dj_cue_system.rules.config import load_config, AppConfig
 from dj_cue_system.rules.engine import resolve_cues
@@ -22,6 +23,10 @@ from dj_cue_system.backup.diff import diff_backups
 app = typer.Typer(name="dj-cue", help="Smart DJ cue point generator")
 backup_app = typer.Typer(help="Backup and restore cue points")
 app.add_typer(backup_app, name="backup")
+stems_app = typer.Typer(help="Stem onset detection and caching")
+stems_cache_app = typer.Typer(help="Manage the stems cache")
+stems_app.add_typer(stems_cache_app, name="cache")
+app.add_typer(stems_app, name="stems")
 
 console = Console()
 
@@ -422,3 +427,89 @@ def restore(
         writer.write(fake_track, cues, loops)
     writer.finalize()
     console.print(f"[green]Restored to {output}[/green]. Import via File → Import → rekordbox xml.")
+
+
+@stems_app.command("run")
+def stems_run(
+    paths: list[str] = typer.Option([], "--path", help="Audio file paths to process. Repeatable: --path a.mp3 --path b.mp3."),
+    library: bool = typer.Option(False, "--library", help="Process all tracks in your Rekordbox library."),
+    playlist: list[str] = typer.Option([], "--playlist", help="Limit to tracks in this Rekordbox playlist. Repeatable."),
+    hq: bool = typer.Option(True, "--hq/--no-hq", help="Use Demucs (default) or fast librosa for stem detection."),
+    force: bool = typer.Option(False, "--force", help="Re-process tracks already in cache."),
+    db: Optional[str] = typer.Option(None, "--db", help="Path to Rekordbox master.db. Auto-detected on Mac."),
+    config: str = typer.Option(DEFAULT_CONFIG, "--config", help="Path to rules.yaml config file."),
+):
+    """Pre-process stem onset detection and cache results for later use."""
+    from dj_cue_system.stems import cache as stems_cache
+    from dj_cue_system.stems import jobs as stems_jobs
+
+    cfg = load_config(config)
+
+    # Build (path, title) list
+    track_pairs: list[tuple[str, str]] = []
+    if paths:
+        for p in paths:
+            track_pairs.append((os.path.abspath(p), os.path.splitext(os.path.basename(p))[0]))
+    if library or playlist:
+        try:
+            tracks = get_tracks(db)
+            playlist_map = get_track_playlists(db)
+            for t in tracks:
+                t.playlists = playlist_map.get(t.id, [])
+            if playlist:
+                tracks = [t for t in tracks if any(p in t.playlists for p in playlist)]
+            for t in tracks:
+                track_pairs.append((t.path, t.title or os.path.basename(t.path)))
+        except FileNotFoundError as e:
+            console.print(f"[red]✗ Database not found:[/red] {e}")
+            raise typer.Exit(1)
+
+    if not track_pairs:
+        console.print("[yellow]No tracks specified. Use --path, --library, or --playlist.[/yellow]")
+        raise typer.Exit(1)
+
+    # Mark cached tracks as skipped up front
+    initial_statuses: list[str] = []
+    for path, _ in track_pairs:
+        if not force and stems_cache.load(path) is not None:
+            initial_statuses.append("skipped")
+        else:
+            initial_statuses.append("pending")
+
+    job = stems_jobs.create(track_pairs, hq=hq)
+    for (path, _), status in zip(track_pairs, initial_statuses):
+        if status == "skipped":
+            cached = stems_cache.load(path)
+            src = cached[1] if cached else ""
+            stems_jobs.update_track(job, path, "skipped", source=src)
+
+    pending_count = initial_statuses.count("pending")
+    console.print(f"\nJob [bold]{job.id}[/bold]  ({pending_count} to process, {len(track_pairs) - pending_count} already cached)\n")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Starting…", total=pending_count)
+        for (path, title), status in zip(track_pairs, initial_statuses):
+            if status == "skipped":
+                continue
+            progress.update(task, description=f"[bold]{title}[/bold]")
+            try:
+                with warnings.catch_warnings(record=True):
+                    onsets, _ = _get_stem_onsets(path, cfg, hq, force=True)
+                source = "demucs" if hq else "librosa"
+                stems_jobs.update_track(job, path, "done", source=source)
+            except Exception as e:
+                stems_jobs.update_track(job, path, "failed", error=str(e))
+                progress.console.print(f"[red]✗ Failed {title!r}: {e}[/red]")
+            progress.advance(task)
+
+    done = sum(1 for t in job.tracks if t.status == "done")
+    failed = sum(1 for t in job.tracks if t.status == "failed")
+    skipped = sum(1 for t in job.tracks if t.status == "skipped")
+    console.print(f"\n[green]Done.[/green]  {done} processed, {skipped} skipped (cached), {failed} failed")
+    console.print(f"Run [bold]dj-cue stems status {job.id}[/bold] to review details.")

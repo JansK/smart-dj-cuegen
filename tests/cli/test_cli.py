@@ -119,3 +119,85 @@ def test_restore_produces_xml(tmp_path):
         result = runner.invoke(app, ["restore", "fake.json", "--output", str(out)])
     assert result.exit_code == 0
     assert out.exists()
+
+
+def test_show_elements_cache_annotation(tmp_path):
+    """show-elements labels stem onsets as (cached · demucs) when result is cached."""
+    cfg = tmp_path / "rules.yaml"
+    cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    with patch("dj_cue_system.cli.run_full_analysis", return_value=(_mock_result(), "demucs")):
+        result = runner.invoke(app, ["show-elements", "/music/track.mp3", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "cached" in result.output
+    assert "demucs" in result.output
+
+
+def test_get_stem_onsets_returns_cached_result(tmp_path, monkeypatch):
+    """_get_stem_onsets returns cached result without running analysis."""
+    import dj_cue_system.stems.cache as stems_cache
+    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.cli import _get_stem_onsets
+    from dj_cue_system.rules.config import load_config
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    cfg = load_config(str(cfg_file))
+
+    with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast") as mock_fast:
+        onsets, source = _get_stem_onsets("/music/track.mp3", cfg, hq=False)
+
+    mock_fast.assert_not_called()
+    assert source == "demucs"
+    assert onsets.vocal == 1.0
+
+
+def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
+    """_get_stem_onsets warns and uses cached result when cache has librosa but --hq set."""
+    import dj_cue_system.stems.cache as stems_cache
+    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.cli import _get_stem_onsets
+    from dj_cue_system.rules.config import load_config
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "librosa")
+
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    cfg = load_config(str(cfg_file))
+
+    # Should return cached result (not re-run Demucs) and return source="librosa"
+    with patch("dj_cue_system.analysis.separation.separate_stems") as mock_sep:
+        onsets, source = _get_stem_onsets("/music/track.mp3", cfg, hq=True)
+
+    mock_sep.assert_not_called()
+    assert source == "librosa"
+    assert onsets.vocal == 1.0
+
+
+def test_stems_run_skips_cached_tracks(tmp_path, monkeypatch):
+    """stems run marks already-cached tracks as skipped without re-running analysis."""
+    import dj_cue_system.stems.cache as stems_cache
+    import dj_cue_system.stems.jobs as stems_jobs
+    from dj_cue_system.analysis.models import StemOnsets
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
+
+    # Pre-populate cache
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+
+    cfg = tmp_path / "rules.yaml"
+    cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+
+    with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast") as mock_fast:
+        result = runner.invoke(app, [
+            "stems", "run", "--path", "/music/track.mp3",
+            "--no-hq", "--config", str(cfg),
+        ])
+
+    assert result.exit_code == 0
+    mock_fast.assert_not_called()
+    assert "cached" in result.output

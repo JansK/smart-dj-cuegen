@@ -50,10 +50,10 @@ def _get_stem_onsets(
             onsets, source = cached
             if hq and source == "librosa":
                 console.print(
-                    f"[yellow]⚠ Using cached librosa result for "
-                    f"{os.path.basename(audio_path)!r}; run "
+                    f'[yellow]⚠ Using cached librosa result for '
+                    f'"{os.path.basename(audio_path)}"; run '
                     f'`dj-cue stems run --path "{audio_path}"` '
-                    f"to compute Demucs stems[/yellow]"
+                    f'to compute Demucs stems[/yellow]'
                 )
             return onsets, source
 

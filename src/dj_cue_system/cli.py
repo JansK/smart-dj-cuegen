@@ -590,3 +590,36 @@ def stems_jobs_list():
             f"[red]{failed} failed[/red]   "
             f"{pending} pending   {mode}"
         )
+
+
+@stems_cache_app.command("list")
+def stems_cache_list():
+    """List all cached stem onset results."""
+    from dj_cue_system.stems import cache as stems_cache
+
+    entries = stems_cache.list_entries()
+    if not entries:
+        console.print("[dim]No cached stems found.[/dim]")
+        return
+    for e in entries:
+        date = e.computed_at[:10]
+        console.print(f"  {e.audio_path:<60} {e.source:<8} {date}")
+
+
+@stems_cache_app.command("clear")
+def stems_cache_clear(
+    path: Optional[str] = typer.Option(None, "--path", help="Clear the cache entry for this specific audio file path."),
+):
+    """Clear cached stem onset results. Clears all entries unless --path is given."""
+    from dj_cue_system.stems import cache as stems_cache
+
+    if path is None:
+        typer.confirm("This will delete all cached stem results. Continue?", abort=True)
+        count = stems_cache.clear()
+        console.print(f"[green]Cleared {count} cache entries.[/green]")
+    else:
+        count = stems_cache.clear(path)
+        if count == 0:
+            console.print(f"[yellow]No cache entry found for:[/yellow] {path}")
+        else:
+            console.print(f"[green]Cleared cache entry for:[/green] {path}")

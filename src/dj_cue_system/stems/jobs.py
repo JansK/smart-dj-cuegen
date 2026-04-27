@@ -84,35 +84,36 @@ def update_track(job: Job, path: str, status: str, source: str = "", error: str 
             t.status = status
             t.source = source
             t.error = error
+            _write(job)
             break
-    _write(job)
 
 
-def load(job_id: str) -> Job | None:
-    path = _job_path(job_id)
-    if not path.exists():
-        return None
+def _safe_load(path: Path) -> Job | None:
     try:
         return _parse_job(json.loads(path.read_text()))
     except (json.JSONDecodeError, KeyError, OSError):
         return None
 
 
+def load(job_id: str) -> Job | None:
+    path = _job_path(job_id)
+    if not path.exists():
+        return None
+    return _safe_load(path)
+
+
 def latest() -> Job | None:
-    files = sorted(_jobs_dir().glob("*.json"), reverse=True)
-    for f in files:
-        try:
-            return _parse_job(json.loads(f.read_text()))
-        except (json.JSONDecodeError, KeyError, OSError):
-            continue
+    for f in sorted(_jobs_dir().glob("*.json"), reverse=True):
+        job = _safe_load(f)
+        if job is not None:
+            return job
     return None
 
 
 def list_all() -> list[Job]:
     jobs = []
     for f in sorted(_jobs_dir().glob("*.json"), reverse=True):
-        try:
-            jobs.append(_parse_job(json.loads(f.read_text())))
-        except (json.JSONDecodeError, KeyError, OSError):
-            continue
+        job = _safe_load(f)
+        if job is not None:
+            jobs.append(job)
     return jobs

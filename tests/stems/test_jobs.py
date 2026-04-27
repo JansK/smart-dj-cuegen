@@ -17,8 +17,7 @@ def test_create_writes_file():
     assert job.tracks[1].title == "Track B"
 
 
-def test_create_job_file_exists(tmp_path, monkeypatch):
-    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path)
+def test_create_job_file_exists(tmp_path):
     job = stems_jobs.create([("/music/a.mp3", "A")], hq=False)
     assert (tmp_path / f"{job.id}.json").exists()
 
@@ -38,8 +37,7 @@ def test_update_track_failed():
     assert job.tracks[0].error == "RuntimeError: bad file"
 
 
-def test_update_track_persisted_to_disk(tmp_path, monkeypatch):
-    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path)
+def test_update_track_persisted_to_disk(tmp_path):
     job = stems_jobs.create([("/music/a.mp3", "A")], hq=True)
     stems_jobs.update_track(job, "/music/a.mp3", "done", source="demucs")
     reloaded = stems_jobs.load(job.id)
@@ -56,8 +54,7 @@ def test_latest_none_when_no_jobs():
     assert stems_jobs.latest() is None
 
 
-def test_latest_returns_most_recent(tmp_path, monkeypatch):
-    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path)
+def test_latest_returns_most_recent(tmp_path):
     job1 = stems_jobs.create([("/a.mp3", "A")], hq=True)
     job2 = stems_jobs.create([("/b.mp3", "B")], hq=False)
     latest = stems_jobs.latest()
@@ -65,8 +62,7 @@ def test_latest_returns_most_recent(tmp_path, monkeypatch):
     assert latest.id == job2.id
 
 
-def test_list_all_newest_first(tmp_path, monkeypatch):
-    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path)
+def test_list_all_newest_first(tmp_path):
     job1 = stems_jobs.create([("/a.mp3", "A")], hq=True)
     job2 = stems_jobs.create([("/b.mp3", "B")], hq=False)
     all_jobs = stems_jobs.list_all()

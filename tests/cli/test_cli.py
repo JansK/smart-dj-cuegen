@@ -168,13 +168,17 @@ def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
     cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
     cfg = load_config(str(cfg_file))
 
-    # Should return cached result (not re-run Demucs) and return source="librosa"
-    with patch("dj_cue_system.analysis.separation.separate_stems") as mock_sep:
+    with patch("dj_cue_system.cli.console") as mock_console, \
+         patch("dj_cue_system.analysis.separation.separate_stems") as mock_sep:
         onsets, source = _get_stem_onsets("/music/track.mp3", cfg, hq=True)
 
     mock_sep.assert_not_called()
     assert source == "librosa"
     assert onsets.vocal == 1.0
+    # Warning must have been printed
+    printed_args = " ".join(str(c) for c in mock_console.print.call_args_list)
+    assert "librosa" in printed_args.lower()
+    assert "stems run" in printed_args.lower()
 
 
 def test_stems_run_skips_cached_tracks(tmp_path, monkeypatch):

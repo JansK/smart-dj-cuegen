@@ -541,7 +541,7 @@ def stems_status(
         job = stems_jobs.latest()
         if job is None:
             console.print("[dim]No jobs found. Run `dj-cue stems run` to start one.[/dim]")
-            raise typer.Exit(1)
+            return
 
     mode = "HQ/Demucs" if job.hq else "fast/librosa"
     console.print(f"\nJob [bold]{job.id}[/bold]  ({mode})")
@@ -562,7 +562,8 @@ def stems_status(
         elif t.status == "skipped":
             console.print(f"  [dim]↷ {title:<40} (skipped — already cached)[/dim]")
         elif t.status == "failed":
-            console.print(f"  [red]✗[/red] {title:<40} {t.error}")
+            error_preview = t.error.splitlines()[0][:80] if t.error else ""
+            console.print(f"  [red]✗[/red] {title:<40} {error_preview}")
         else:
             console.print(f"  [dim]· {title}[/dim]")
 

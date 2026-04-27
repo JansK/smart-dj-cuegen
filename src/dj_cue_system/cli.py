@@ -523,3 +523,69 @@ def stems_run(
     skipped = sum(1 for t in job.tracks if t.status == "skipped")
     console.print(f"\n[green]Done.[/green]  {done} processed, {skipped} skipped (cached), {failed} failed")
     console.print(f"Run [bold]dj-cue stems status {job.id}[/bold] to review details.")
+
+
+@stems_app.command("status")
+def stems_status(
+    job_id: Optional[str] = typer.Argument(None, help="Job ID to inspect. Defaults to the most recent job."),
+):
+    """Show the current state of a stems run job."""
+    from dj_cue_system.stems import jobs as stems_jobs
+
+    if job_id:
+        job = stems_jobs.load(job_id)
+        if job is None:
+            console.print(f"[red]✗ Job not found:[/red] {job_id}")
+            raise typer.Exit(1)
+    else:
+        job = stems_jobs.latest()
+        if job is None:
+            console.print("[dim]No jobs found. Run `dj-cue stems run` to start one.[/dim]")
+            raise typer.Exit(1)
+
+    mode = "HQ/Demucs" if job.hq else "fast/librosa"
+    console.print(f"\nJob [bold]{job.id}[/bold]  ({mode})")
+    console.print(f"Created: {job.created_at[:19].replace('T', ' ')}\n")
+
+    done = sum(1 for t in job.tracks if t.status == "done")
+    failed = sum(1 for t in job.tracks if t.status == "failed")
+    pending = sum(1 for t in job.tracks if t.status == "pending")
+    skipped = sum(1 for t in job.tracks if t.status == "skipped")
+    total = len(job.tracks)
+    completed = done + skipped
+    console.print(f"Progress: {completed}/{total}  |  {failed} failed  |  {pending} pending\n")
+
+    for t in job.tracks:
+        title = t.title or os.path.basename(t.path)
+        if t.status == "done":
+            console.print(f"  [green]✓[/green] {title:<40} ({t.source})")
+        elif t.status == "skipped":
+            console.print(f"  [dim]↷ {title:<40} (skipped — already cached)[/dim]")
+        elif t.status == "failed":
+            console.print(f"  [red]✗[/red] {title:<40} {t.error}")
+        else:
+            console.print(f"  [dim]· {title}[/dim]")
+
+
+@stems_app.command("jobs")
+def stems_jobs_list():
+    """List all stems run jobs, newest first."""
+    from dj_cue_system.stems import jobs as stems_jobs
+
+    all_jobs = stems_jobs.list_all()
+    if not all_jobs:
+        console.print("[dim]No jobs found.[/dim]")
+        return
+
+    for job in all_jobs:
+        done = sum(1 for t in job.tracks if t.status == "done")
+        failed = sum(1 for t in job.tracks if t.status == "failed")
+        pending = sum(1 for t in job.tracks if t.status == "pending")
+        total = len(job.tracks)
+        mode = "HQ" if job.hq else "fast"
+        console.print(
+            f"  {job.id}   {total} tracks   "
+            f"[green]{done} done[/green]   "
+            f"[red]{failed} failed[/red]   "
+            f"{pending} pending   {mode}"
+        )

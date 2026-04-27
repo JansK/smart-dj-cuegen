@@ -33,17 +33,23 @@ class CacheEntry:
 
 
 def load(audio_path: str) -> tuple[StemOnsets, str] | None:
+    abs_path = os.path.abspath(audio_path)
     path = _cache_dir() / f"{_cache_key(audio_path)}.json"
     if not path.exists():
         return None
-    data = json.loads(path.read_text())
-    onsets = StemOnsets(
-        vocal=data.get("vocal"),
-        drum=data.get("drum"),
-        bass=data.get("bass"),
-        other=data.get("other"),
-    )
-    return onsets, data["source"]
+    try:
+        data = json.loads(path.read_text())
+        if data.get("audio_path") != abs_path:
+            return None
+        onsets = StemOnsets(
+            vocal=data.get("vocal"),
+            drum=data.get("drum"),
+            bass=data.get("bass"),
+            other=data.get("other"),
+        )
+        return onsets, data["source"]
+    except (json.JSONDecodeError, KeyError, OSError):
+        return None
 
 
 def save(audio_path: str, onsets: StemOnsets, source: str) -> None:
@@ -76,7 +82,7 @@ def list_entries() -> list[CacheEntry]:
                 bass=data.get("bass"),
                 other=data.get("other"),
             ))
-        except Exception:
+        except (json.JSONDecodeError, KeyError, OSError):
             continue
     return sorted(entries, key=lambda e: e.audio_path)
 

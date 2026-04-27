@@ -464,26 +464,36 @@ def stems_run(
             console.print(f"[red]✗ Database not found:[/red] {e}")
             raise typer.Exit(1)
 
+    # Deduplicate by absolute path, preserving order
+    seen: set[str] = set()
+    deduped: list[tuple[str, str]] = []
+    for p, t in track_pairs:
+        abs_p = os.path.abspath(p)
+        if abs_p not in seen:
+            seen.add(abs_p)
+            deduped.append((abs_p, t))
+    track_pairs = deduped
+
     if not track_pairs:
         console.print("[yellow]No tracks specified. Use --path, --library, or --playlist.[/yellow]")
         raise typer.Exit(1)
 
-    # Mark cached tracks as skipped up front
-    initial_statuses: list[str] = []
+    # Mark cached tracks as skipped up front; cache result to avoid double lookup
+    initial_states: list[tuple[str, str]] = []  # (status, source)
     for path, _ in track_pairs:
-        if not force and stems_cache.load(path) is not None:
-            initial_statuses.append("skipped")
-        else:
-            initial_statuses.append("pending")
+        if not force:
+            cached = stems_cache.load(path)
+            if cached is not None:
+                initial_states.append(("skipped", cached[1]))
+                continue
+        initial_states.append(("pending", ""))
 
     job = stems_jobs.create(track_pairs, hq=hq)
-    for (path, _), status in zip(track_pairs, initial_statuses):
+    for (path, _), (status, src) in zip(track_pairs, initial_states):
         if status == "skipped":
-            cached = stems_cache.load(path)
-            src = cached[1] if cached else ""
             stems_jobs.update_track(job, path, "skipped", source=src)
 
-    pending_count = initial_statuses.count("pending")
+    pending_count = sum(1 for status, _ in initial_states if status == "pending")
     console.print(f"\nJob [bold]{job.id}[/bold]  ({pending_count} to process, {len(track_pairs) - pending_count} already cached)\n")
 
     with Progress(
@@ -494,7 +504,7 @@ def stems_run(
         console=console,
     ) as progress:
         task = progress.add_task("Starting…", total=pending_count)
-        for (path, title), status in zip(track_pairs, initial_statuses):
+        for (path, title), (status, _src) in zip(track_pairs, initial_states):
             if status == "skipped":
                 continue
             progress.update(task, description=f"[bold]{title}[/bold]")

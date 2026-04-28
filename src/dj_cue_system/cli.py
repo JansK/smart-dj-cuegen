@@ -50,7 +50,7 @@ def _get_stem_onsets(
     from dj_cue_system.stems import cache as stems_cache
 
     if not force:
-        cached = stems_cache.load(audio_path)
+        cached = stems_cache.load(audio_path, hq=hq)
         if cached is not None:
             onsets, source = cached
             if hq and source == "librosa":

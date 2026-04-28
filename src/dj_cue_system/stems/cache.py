@@ -21,20 +21,27 @@ def _cache_key(audio_path: str) -> str:
     return hashlib.sha256(abs_path.encode()).hexdigest()[:16]
 
 
+def _hq_path(audio_path: str) -> Path:
+    return _cache_dir() / f"{_cache_key(audio_path)}_hq.json"
+
+
+def _lq_path(audio_path: str) -> Path:
+    return _cache_dir() / f"{_cache_key(audio_path)}_lq.json"
+
+
 @dataclass
 class CacheEntry:
     audio_path: str
     source: str
     computed_at: str
+    hq: bool
     vocal: float | None
     drum: float | None
     bass: float | None
     other: float | None
 
 
-def load(audio_path: str) -> tuple[StemOnsets, str] | None:
-    abs_path = os.path.abspath(audio_path)
-    path = _cache_dir() / f"{_cache_key(audio_path)}.json"
+def _read_entry(path: Path, abs_path: str) -> tuple[StemOnsets, str] | None:
     if not path.exists():
         return None
     try:
@@ -52,8 +59,22 @@ def load(audio_path: str) -> tuple[StemOnsets, str] | None:
         return None
 
 
+def load(audio_path: str, hq: bool = False) -> tuple[StemOnsets, str] | None:
+    abs_path = os.path.abspath(audio_path)
+    if hq:
+        result = _read_entry(_hq_path(audio_path), abs_path)
+        if result is not None:
+            return result
+        return _read_entry(_lq_path(audio_path), abs_path)
+    else:
+        result = _read_entry(_lq_path(audio_path), abs_path)
+        if result is not None:
+            return result
+        return _read_entry(_hq_path(audio_path), abs_path)
+
+
 def save(audio_path: str, onsets: StemOnsets, source: str) -> None:
-    path = _cache_dir() / f"{_cache_key(audio_path)}.json"
+    path = _hq_path(audio_path) if source == "demucs" else _lq_path(audio_path)
     data = {
         "audio_path": os.path.abspath(audio_path),
         "source": source,
@@ -73,10 +94,12 @@ def list_entries() -> list[CacheEntry]:
     for f in _cache_dir().glob("*.json"):
         try:
             data = json.loads(f.read_text())
+            is_hq = f.stem.endswith("_hq")
             entries.append(CacheEntry(
                 audio_path=data["audio_path"],
                 source=data["source"],
                 computed_at=data["computed_at"],
+                hq=is_hq,
                 vocal=data.get("vocal"),
                 drum=data.get("drum"),
                 bass=data.get("bass"),
@@ -84,16 +107,16 @@ def list_entries() -> list[CacheEntry]:
             ))
         except (json.JSONDecodeError, KeyError, OSError):
             continue
-    return sorted(entries, key=lambda e: e.audio_path)
+    return sorted(entries, key=lambda e: (e.audio_path, e.hq))
 
 
 def clear(audio_path: str | None = None) -> int:
     count = 0
     if audio_path is not None:
-        path = _cache_dir() / f"{_cache_key(audio_path)}.json"
-        if path.exists():
-            path.unlink()
-            count = 1
+        for path in (_hq_path(audio_path), _lq_path(audio_path)):
+            if path.exists():
+                path.unlink()
+                count += 1
     else:
         for f in _cache_dir().glob("*.json"):
             f.unlink()

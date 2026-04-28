@@ -482,8 +482,9 @@ def stems_run(
     initial_states: list[tuple[str, str]] = []  # (status, source)
     for path, _ in track_pairs:
         if not force:
-            cached = stems_cache.load(path)
-            if cached is not None:
+            cached = stems_cache.load(path, hq=hq)
+            expected_source = "demucs" if hq else "librosa"
+            if cached is not None and cached[1] == expected_source:
                 initial_states.append(("skipped", cached[1]))
                 continue
         initial_states.append(("pending", ""))

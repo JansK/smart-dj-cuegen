@@ -181,8 +181,8 @@ def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
     assert "stems run" in printed_args.lower()
 
 
-def test_stems_run_skips_cached_tracks(tmp_path, monkeypatch):
-    """stems run marks already-cached tracks as skipped without re-running analysis."""
+def test_stems_run_skips_matching_slot(tmp_path, monkeypatch):
+    """stems run skips a track when the requested slot (LQ) is already cached."""
     import dj_cue_system.stems.cache as stems_cache
     import dj_cue_system.stems.jobs as stems_jobs
     from dj_cue_system.analysis.models import StemOnsets
@@ -190,8 +190,7 @@ def test_stems_run_skips_cached_tracks(tmp_path, monkeypatch):
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
-    # Pre-populate cache
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "librosa")
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -204,4 +203,55 @@ def test_stems_run_skips_cached_tracks(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     mock_fast.assert_not_called()
+    assert "cached" in result.output
+
+
+def test_stems_run_processes_when_only_other_slot_cached(tmp_path, monkeypatch):
+    """stems run processes a track when only the opposite slot is cached (HQ cached, --no-hq requested)."""
+    import dj_cue_system.stems.cache as stems_cache
+    import dj_cue_system.stems.jobs as stems_jobs
+    from dj_cue_system.analysis.models import StemOnsets
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
+
+    # Only HQ cached — LQ slot is missing
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+
+    cfg = tmp_path / "rules.yaml"
+    cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+
+    with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
+               return_value=StemOnsets(vocal=2.0)) as mock_fast:
+        result = runner.invoke(app, [
+            "stems", "run", "--path", "/music/track.mp3",
+            "--no-hq", "--config", str(cfg),
+        ])
+
+    assert result.exit_code == 0
+    mock_fast.assert_called_once()
+
+
+def test_stems_run_skips_hq_when_hq_cached(tmp_path, monkeypatch):
+    """stems run skips a track when the HQ slot is already cached and --hq is requested."""
+    import dj_cue_system.stems.cache as stems_cache
+    import dj_cue_system.stems.jobs as stems_jobs
+    from dj_cue_system.analysis.models import StemOnsets
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
+
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+
+    cfg = tmp_path / "rules.yaml"
+    cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+
+    with patch("dj_cue_system.analysis.separation.separate_stems") as mock_sep:
+        result = runner.invoke(app, [
+            "stems", "run", "--path", "/music/track.mp3",
+            "--hq", "--config", str(cfg),
+        ])
+
+    assert result.exit_code == 0
+    mock_sep.assert_not_called()
     assert "cached" in result.output

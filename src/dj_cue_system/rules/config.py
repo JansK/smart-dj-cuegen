@@ -39,10 +39,24 @@ class OnsetThresholds(BaseModel):
     other: float = 0.02
 
 
+class BreakDetectionConfig(BaseModel):
+    silence_fraction: float = 0.3
+    min_stems_silent: int = 2
+    min_bars: int = 4
+
+
+class StableDetectionConfig(BaseModel):
+    stability_cv_threshold: float = 0.4
+    min_stable_bars: int = 8
+    max_scan_bars: int = 128
+
+
 class SettingsConfig(BaseModel):
     demucs_model: str = "htdemucs"
     onset_window_frames: int = 10
     onset_thresholds: OnsetThresholds = OnsetThresholds()
+    break_detection: BreakDetectionConfig = BreakDetectionConfig()
+    stable_detection: StableDetectionConfig = StableDetectionConfig()
 
 
 class AppConfig(BaseModel):

@@ -103,3 +103,21 @@ def test_invalid_color_raises(tmp_path):
     cfg_file.write_text(yaml_str)
     with pytest.raises(Exception):
         load_config(str(cfg_file))
+
+
+def test_break_detection_config_defaults(tmp_path):
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text(MINIMAL_YAML)
+    config = load_config(str(cfg_file))
+    assert config.settings.break_detection.silence_fraction == pytest.approx(0.3)
+    assert config.settings.break_detection.min_stems_silent == 2
+    assert config.settings.break_detection.min_bars == 4
+
+
+def test_stable_detection_config_defaults(tmp_path):
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text(MINIMAL_YAML)
+    config = load_config(str(cfg_file))
+    assert config.settings.stable_detection.stability_cv_threshold == pytest.approx(0.4)
+    assert config.settings.stable_detection.min_stable_bars == 8
+    assert config.settings.stable_detection.max_scan_bars == 128

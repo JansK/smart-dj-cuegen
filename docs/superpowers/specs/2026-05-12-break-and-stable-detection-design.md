@@ -124,10 +124,10 @@ This correctly handles gradual buildups: a stem entering from silence to full en
 ```python
 @dataclass
 class BarEnergy:
-    drum_bars: list[float]
-    bass_bars: list[float]
-    vocal_bars: list[float]
-    other_bars: list[float]
+    drum_bar_energies: list[float]
+    bass_bar_energies: list[float]
+    vocal_bar_energies: list[float]
+    other_bar_energies: list[float]
 ```
 
 No changes to `AnalysisResult` or `Section`. Detected breaks and stable regions are appended to `result.sections` (sorted by `start_bar`) in the same list as ANLZ-sourced phrase sections.
@@ -136,7 +136,7 @@ No changes to `AnalysisResult` or `Section`. Detected breaks and stable regions 
 
 ## 5. Stems Cache Extension
 
-**`stems/cache.py`** — four optional fields added to `CacheEntry` and the JSON format:
+**`stems/cache.py`** — four optional fields added to `CacheEntry` and the JSON format (named `<stem>_bar_energies`):
 
 ```json
 {
@@ -147,10 +147,10 @@ No changes to `AnalysisResult` or `Section`. Detected breaks and stable regions 
   "drum": 0.012,
   "bass": null,
   "other": 0.244,
-  "drum_bars": [0.12, 0.15, 0.14, ...],
-  "bass_bars": [0.02, 0.03, 0.02, ...],
-  "vocal_bars": [0.00, 0.01, 0.01, ...],
-  "other_bars": [0.05, 0.08, 0.06, ...]
+  "drum_bar_energies": [0.12, 0.15, 0.14, ...],
+  "bass_bar_energies": [0.02, 0.03, 0.02, ...],
+  "vocal_bar_energies": [0.00, 0.01, 0.01, ...],
+  "other_bar_energies": [0.05, 0.08, 0.06, ...]
 }
 ```
 

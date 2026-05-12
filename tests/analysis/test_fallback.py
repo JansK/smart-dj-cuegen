@@ -35,5 +35,5 @@ def test_analyze_with_allin1_stem_onsets_empty():
         mock_lib.analyze.return_value = _mock_allin1_result()
         result = analyze_with_allin1("/music/track.mp3")
 
-    assert result.stem_onsets.vocal is None
-    assert result.stem_onsets.drum is None
+    assert result.stem_onsets.vocal_first_onset is None
+    assert result.stem_onsets.drum_first_onset is None

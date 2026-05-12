@@ -15,7 +15,7 @@ def _mock_result():
             Section("intro", 0, 16, 0.0, 32.0),
             Section("outro", 96, 128, 192.0, 256.0),
         ],
-        stem_onsets=StemOnsets(vocal=4.0),
+        stem_onsets=StemOnsets(vocal_first_onset=4.0),
         audio_path="/music/track.mp3",
         anlz_source=True,
     )
@@ -140,7 +140,7 @@ def test_get_stem_onsets_returns_cached_result(tmp_path, monkeypatch):
     from dj_cue_system.rules.config import load_config
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs")
 
     cfg_file = tmp_path / "rules.yaml"
     cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -151,7 +151,7 @@ def test_get_stem_onsets_returns_cached_result(tmp_path, monkeypatch):
 
     mock_fast.assert_not_called()
     assert source == "demucs"
-    assert onsets.vocal == 1.0
+    assert onsets.vocal_first_onset == 1.0
 
 
 def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
@@ -162,7 +162,7 @@ def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
     from dj_cue_system.rules.config import load_config
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "librosa")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa")
 
     cfg_file = tmp_path / "rules.yaml"
     cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -174,7 +174,7 @@ def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
 
     mock_sep.assert_not_called()
     assert source == "librosa"
-    assert onsets.vocal == 1.0
+    assert onsets.vocal_first_onset == 1.0
     # Warning must have been printed
     printed_args = " ".join(str(c) for c in mock_console.print.call_args_list)
     assert "librosa" in printed_args.lower()
@@ -190,7 +190,7 @@ def test_stems_run_skips_matching_slot(tmp_path, monkeypatch):
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "librosa")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa")
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -216,13 +216,13 @@ def test_stems_run_processes_when_only_other_slot_cached(tmp_path, monkeypatch):
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
     # Only HQ cached — LQ slot is missing
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs")
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
 
     with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
-               return_value=StemOnsets(vocal=2.0)) as mock_fast:
+               return_value=StemOnsets(vocal_first_onset=2.0)) as mock_fast:
         result = runner.invoke(app, [
             "stems", "run", "--path", "/music/track.mp3",
             "--no-hq", "--config", str(cfg),
@@ -241,7 +241,7 @@ def test_stems_run_skips_hq_when_hq_cached(tmp_path, monkeypatch):
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal=1.0), "demucs")
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs")
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")

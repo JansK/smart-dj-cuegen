@@ -10,18 +10,18 @@ _SECTION_ELEMENTS = {
     "up_start", "down_start",
 }
 _STEM_ONSET_ELEMENTS = {
-    "first_vocal_onset": "vocal",
-    "first_drum_onset": "drum",
-    "first_bass_onset": "bass",
-    "first_other_onset": "other",
+    "first_vocal_onset": "vocal_first_onset",
+    "first_drum_onset": "drum_first_onset",
+    "first_bass_onset": "bass_first_onset",
+    "first_other_onset": "other_first_onset",
 }
 
 
-# High-mood Rekordbox tracks use "up"/"down" labels instead of "verse"/"break".
-# verse_start/break_start rules should also match these raw labels.
+# Rekordbox emits "verse1"–"verse4" for Low/Mid mood tracks and "up" for High mood.
+# verse_start/break_start rules should match all these variants.
 _LABEL_ALIASES: dict[str, list[str]] = {
-    "verse": ["verse", "up"],   # High-mood "up" is treated as verse
-    "break": ["break", "down"], # High-mood "down" is treated as break
+    "verse": ["verse1", "verse2", "verse3", "verse4", "verse5", "verse6", "up"],
+    "break": ["break", "down"],
 }
 
 

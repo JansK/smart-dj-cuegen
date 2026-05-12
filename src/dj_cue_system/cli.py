@@ -69,10 +69,10 @@ def _get_stem_onsets(
         from dj_cue_system.analysis.onset import detect_onset_rms
         stems = separate_stems(audio_path, model_name=config.settings.demucs_model)
         onsets = StemOnsets(
-            vocal=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
-            drum=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
-            bass=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
-            other=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
+            vocal_first_onset=detect_onset_rms(stems.vocals, stems.sample_rate, thresholds.vocal, w),
+            drum_first_onset=detect_onset_rms(stems.drums, stems.sample_rate, thresholds.drum, w),
+            bass_first_onset=detect_onset_rms(stems.bass, stems.sample_rate, thresholds.bass, w),
+            other_first_onset=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
         )
         source = "demucs"
     else:
@@ -210,13 +210,15 @@ def show_elements(
 ):
     """Show detected elements for an audio file."""
     cfg = load_config(config)
+    label = "Analyzing (Demucs — this may take a few minutes)…" if hq else "Analyzing…"
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        track = get_track_by_path(audio_file)
-        if track:
-            result, cache_source = _analyze_track(track, cfg, hq=hq)
-        else:
-            result, cache_source = run_full_analysis(audio_file, cfg, hq=hq)
+        with console.status(label):
+            track = get_track_by_path(audio_file)
+            if track:
+                result, cache_source = _analyze_track(track, cfg, hq=hq)
+            else:
+                result, cache_source = run_full_analysis(audio_file, cfg, hq=hq)
 
     source = "ANLZ" if result.anlz_source else "all-in-one"
     console.print(f"\n[bold]BPM:[/bold] {result.bpm:.1f} | [bold]Bars:[/bold] {result.total_bars} | [bold]Source:[/bold] {source}\n")
@@ -228,7 +230,7 @@ def show_elements(
     cache_label = f"  [dim](cached · {cache_source})[/dim]" if cache_source else ""
     console.print(f"\n[bold]Stem onsets:[/bold]{cache_label}")
     so = result.stem_onsets
-    for stem_name, val in [("vocal", so.vocal), ("drum", so.drum), ("bass", so.bass), ("other", so.other)]:
+    for stem_name, val in [("vocal", so.vocal_first_onset), ("drum", so.drum_first_onset), ("bass", so.bass_first_onset), ("other", so.other_first_onset)]:
         if val is not None:
             from dj_cue_system.analysis.bar_utils import timestamp_to_bar
             bar = timestamp_to_bar(val, result.downbeats)

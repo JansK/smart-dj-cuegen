@@ -1,4 +1,7 @@
+import warnings
 import numpy as np
+warnings.filterwarnings("ignore", message=".*aifc was removed.*")
+warnings.filterwarnings("ignore", message=".*sunau was removed.*")
 import librosa
 
 from dj_cue_system.analysis.models import StemOnsets
@@ -34,8 +37,8 @@ def detect_stem_onsets_fast(
     other_audio = _bandpass(y_harmonic, sr, 3500, 8000)
 
     return StemOnsets(
-        vocal=detect_onset_rms(vocal_audio, sr, thresholds.vocal, window_frames),
-        drum=detect_onset_rms(y_percussive, sr, thresholds.drum, window_frames),
-        bass=detect_onset_rms(bass_audio, sr, thresholds.bass, window_frames),
-        other=detect_onset_rms(other_audio, sr, thresholds.other, window_frames),
+        vocal_first_onset=detect_onset_rms(vocal_audio, sr, thresholds.vocal, window_frames),
+        drum_first_onset=detect_onset_rms(y_percussive, sr, thresholds.drum, window_frames),
+        bass_first_onset=detect_onset_rms(bass_audio, sr, thresholds.bass, window_frames),
+        other_first_onset=detect_onset_rms(other_audio, sr, thresholds.other, window_frames),
     )

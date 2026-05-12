@@ -35,10 +35,10 @@ class CacheEntry:
     source: str
     computed_at: str
     hq: bool
-    vocal: float | None
-    drum: float | None
-    bass: float | None
-    other: float | None
+    vocal_first_onset: float | None
+    drum_first_onset: float | None
+    bass_first_onset: float | None
+    other_first_onset: float | None
 
 
 def _read_entry(path: Path, abs_path: str) -> tuple[StemOnsets, str] | None:
@@ -49,10 +49,10 @@ def _read_entry(path: Path, abs_path: str) -> tuple[StemOnsets, str] | None:
         if data.get("audio_path") != abs_path:
             return None
         onsets = StemOnsets(
-            vocal=data.get("vocal"),
-            drum=data.get("drum"),
-            bass=data.get("bass"),
-            other=data.get("other"),
+            vocal_first_onset=data.get("vocal_first_onset"),
+            drum_first_onset=data.get("drum_first_onset"),
+            bass_first_onset=data.get("bass_first_onset"),
+            other_first_onset=data.get("other_first_onset"),
         )
         return onsets, data["source"]
     except (json.JSONDecodeError, KeyError, OSError):
@@ -79,10 +79,10 @@ def save(audio_path: str, onsets: StemOnsets, source: str) -> None:
         "audio_path": os.path.abspath(audio_path),
         "source": source,
         "computed_at": datetime.now(timezone.utc).isoformat(),
-        "vocal": onsets.vocal,
-        "drum": onsets.drum,
-        "bass": onsets.bass,
-        "other": onsets.other,
+        "vocal_first_onset": onsets.vocal_first_onset,
+        "drum_first_onset": onsets.drum_first_onset,
+        "bass_first_onset": onsets.bass_first_onset,
+        "other_first_onset": onsets.other_first_onset,
     }
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2))
@@ -100,10 +100,10 @@ def list_entries() -> list[CacheEntry]:
                 source=data["source"],
                 computed_at=data["computed_at"],
                 hq=is_hq,
-                vocal=data.get("vocal"),
-                drum=data.get("drum"),
-                bass=data.get("bass"),
-                other=data.get("other"),
+                vocal_first_onset=data.get("vocal_first_onset"),
+                drum_first_onset=data.get("drum_first_onset"),
+                bass_first_onset=data.get("bass_first_onset"),
+                other_first_onset=data.get("other_first_onset"),
             ))
         except (json.JSONDecodeError, KeyError, OSError):
             continue

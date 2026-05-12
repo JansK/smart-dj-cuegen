@@ -21,7 +21,7 @@ def _make_result(sections=None, vocal_onset=None, drum_onset=None) -> AnalysisRe
             Section("break", 80, 96, 160.0, 192.0),
             Section("outro", 96, 128, 192.0, 256.0),
         ],
-        stem_onsets=StemOnsets(vocal=vocal_onset, drum=drum_onset),
+        stem_onsets=StemOnsets(vocal_first_onset=vocal_onset, drum_first_onset=drum_onset),
         audio_path="/music/track.mp3",
         anlz_source=True,
     )
@@ -184,6 +184,29 @@ def test_playlist_ruleset_used_over_defaults():
     names = [c.name for c in cues]
     assert "PlaylistCue" in names
     assert "Default" not in names
+
+
+def test_verse_start_matches_verse1():
+    """verse_start rules should match 'verse1' sections (raw Rekordbox label)."""
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          r:
+            rules:
+              - element: verse_start
+                type: memory_cue
+                offset_bars: 0
+                name: "Verse"
+        defaults:
+          rulesets: [r]
+    """))
+    result = _make_result(sections=[
+        Section("intro", 0, 16, 0.0, 32.0),
+        Section("verse1", 16, 48, 32.0, 96.0),
+        Section("outro", 96, 128, 192.0, 256.0),
+    ])
+    cues, loops = resolve_cues(result, cfg, playlists=[])
+    assert len(cues) == 1
+    assert cues[0].bar == 16
 
 
 def test_verse_start_matches_high_mood_up():

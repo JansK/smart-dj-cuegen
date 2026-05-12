@@ -20,10 +20,10 @@ class Section:
 
 @dataclass
 class StemOnsets:
-    vocal: float | None = None
-    drum: float | None = None
-    bass: float | None = None
-    other: float | None = None
+    vocal_first_onset: float | None = None
+    drum_first_onset: float | None = None
+    bass_first_onset: float | None = None
+    other_first_onset: float | None = None
 
 
 @dataclass
@@ -31,7 +31,7 @@ class AnalysisResult:
     bpm: float
     downbeats: list[float]   # seconds at each bar boundary
     total_bars: int
-    sections: list[Section]  # ordered, non-overlapping, normalized labels
+    sections: list[Section]  # ordered, non-overlapping
     stem_onsets: StemOnsets
     audio_path: str
     anlz_source: bool        # True = ANLZ; False = all-in-one fallback

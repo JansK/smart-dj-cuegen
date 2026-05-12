@@ -14,10 +14,10 @@ def test_section_position_fraction():
 
 def test_stem_onsets_defaults_none():
     onsets = StemOnsets()
-    assert onsets.vocal is None
-    assert onsets.drum is None
-    assert onsets.bass is None
-    assert onsets.other is None
+    assert onsets.vocal_first_onset is None
+    assert onsets.drum_first_onset is None
+    assert onsets.bass_first_onset is None
+    assert onsets.other_first_onset is None
 
 
 def test_analysis_result_fields():
@@ -26,7 +26,7 @@ def test_analysis_result_fields():
         downbeats=[0.0, 1.9, 3.8, 5.7],
         total_bars=4,
         sections=[Section("intro", 0, 4, 0.0, 7.6)],
-        stem_onsets=StemOnsets(vocal=4.1),
+        stem_onsets=StemOnsets(vocal_first_onset=4.1),
         audio_path="/music/track.mp3",
         anlz_source=True,
     )

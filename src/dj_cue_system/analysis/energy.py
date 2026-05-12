@@ -13,9 +13,11 @@ def compute_bar_energy(
     def rms_per_bar(audio: np.ndarray) -> list[float]:
         energies = []
         for i, start_time in enumerate(downbeats):
-            end_time = downbeats[i + 1] if i + 1 < len(downbeats) else len(audio) / sr
             start_sample = int(start_time * sr)
-            end_sample = int(end_time * sr)
+            if i + 1 < len(downbeats):
+                end_sample = int(downbeats[i + 1] * sr)
+            else:
+                end_sample = len(audio)
             segment = audio[start_sample:end_sample]
             energies.append(float(np.sqrt(np.mean(segment ** 2))) if len(segment) > 0 else 0.0)
         return energies

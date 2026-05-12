@@ -27,6 +27,14 @@ class StemOnsets:
 
 
 @dataclass
+class BarEnergy:
+    drum_bar_energies: list[float]
+    bass_bar_energies: list[float]
+    vocal_bar_energies: list[float]
+    other_bar_energies: list[float]
+
+
+@dataclass
 class AnalysisResult:
     bpm: float
     downbeats: list[float]   # seconds at each bar boundary

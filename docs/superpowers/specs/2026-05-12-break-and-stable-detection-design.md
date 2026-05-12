@@ -99,9 +99,11 @@ For a candidate window `[start, end]`:
 2. For each active stem, compute `CV = std(bar_rms) / mean(bar_rms)` across the window.
 3. **Stable condition**: `max(CV across active stems) < stability_cv_threshold`.
 
-**Stable intro**: Expand incrementally from bar 0, re-evaluating the stable condition after each bar is added to the window. Continue while stable; stop at the first bar that breaks the condition or when `max_scan_bars` is reached. If the final window is `≥ min_stable_bars`, return `Section(label="stable_intro", start_bar=0, end_bar=N)`.
+**Stable intro**: Search all candidate windows `[a, b]` within bars `[0, max_scan_bars]` where `b - a ≥ min_stable_bars`. Evaluate the stable condition over each candidate window. Return the longest qualifying window as `Section(label="stable_intro", start_bar=a, end_bar=b)`. The region does not have to start at bar 0.
 
-**Stable outro**: Same incremental expansion scanning backward from the last bar. Returns `Section(label="stable_outro", start_bar=M, end_bar=total_bars)` if qualifying.
+**Stable outro**: Same O(N²) search within bars `[total_bars - max_scan_bars, total_bars]`. Returns `Section(label="stable_outro", start_bar=a, end_bar=b)`. The region does not have to end at the last bar.
+
+The search space is at most 128 bars per zone (≤ 16,384 candidate windows) — fast enough to enumerate exhaustively.
 
 This correctly handles gradual buildups: a stem entering from silence to full energy over 32 bars will produce a high std relative to its mean in that window, failing the stability condition.
 

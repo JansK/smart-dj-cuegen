@@ -8,6 +8,8 @@ _SECTION_ELEMENTS = {
     "intro_start", "intro_end", "verse_start", "chorus_start",
     "bridge_start", "break_start", "outro_start", "outro_end",
     "up_start", "down_start",
+    "stable_intro_start", "stable_intro_end",
+    "stable_outro_start", "stable_outro_end",
 }
 _STEM_ONSET_ELEMENTS = {
     "first_vocal_onset": "vocal_first_onset",
@@ -113,7 +115,7 @@ def _resolve_rule(
 
     if rule.type == "loop":
         length = rule.length_bars or 16
-        start_bar = anchor_bar
+        start_bar = max(0, anchor_bar + rule.offset_bars)
         end_bar = min(start_bar + length, result.total_bars)
         start_s = bar_to_timestamp(start_bar, downbeats)
         end_s = bar_to_timestamp(end_bar, downbeats)

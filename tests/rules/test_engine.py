@@ -230,3 +230,91 @@ def test_verse_start_matches_high_mood_up():
     cues, loops = resolve_cues(result, cfg, playlists=[])
     assert len(cues) == 1
     assert cues[0].bar == 16
+
+
+def test_stable_intro_start_places_cue():
+    from dj_cue_system.analysis.models import Section
+    result = _make_result(sections=[
+        Section("intro", 0, 16, 0.0, 32.0),
+        Section("stable_intro", 4, 20, 8.0, 40.0),
+    ])
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          stable-loop:
+            rules:
+              - element: stable_intro_start
+                type: memory_cue
+                name: "Stable In"
+                offset_bars: 0
+        defaults:
+          rulesets: [stable-loop]
+    """))
+    cues, _ = resolve_cues(result, cfg, playlists=[])
+    assert len(cues) == 1
+    assert cues[0].name == "Stable In"
+    assert cues[0].bar == 4
+
+
+def test_stable_intro_end_places_cue():
+    from dj_cue_system.analysis.models import Section
+    result = _make_result(sections=[
+        Section("stable_intro", 4, 20, 8.0, 40.0),
+    ])
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          stable-loop:
+            rules:
+              - element: stable_intro_end
+                type: loop
+                name: "Mix In"
+                offset_bars: -16
+                length_bars: 16
+        defaults:
+          rulesets: [stable-loop]
+    """))
+    _, loops = resolve_cues(result, cfg, playlists=[])
+    assert len(loops) == 1
+    assert loops[0].name == "Mix In"
+    assert loops[0].start_bar == 4  # end_bar=20, offset=-16 → bar 4
+
+
+def test_stable_outro_start_places_cue():
+    from dj_cue_system.analysis.models import Section
+    result = _make_result(sections=[
+        Section("stable_outro", 96, 112, 192.0, 224.0),
+    ])
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          stable-loop:
+            rules:
+              - element: stable_outro_start
+                type: memory_cue
+                name: "Stable Out"
+                offset_bars: 0
+        defaults:
+          rulesets: [stable-loop]
+    """))
+    cues, _ = resolve_cues(result, cfg, playlists=[])
+    assert len(cues) == 1
+    assert cues[0].bar == 96
+
+
+def test_stable_outro_end_places_cue():
+    from dj_cue_system.analysis.models import Section
+    result = _make_result(sections=[
+        Section("stable_outro", 96, 112, 192.0, 224.0),
+    ])
+    cfg = _config_from_yaml(textwrap.dedent("""
+        rulesets:
+          stable-loop:
+            rules:
+              - element: stable_outro_end
+                type: memory_cue
+                name: "Outro End"
+                offset_bars: 0
+        defaults:
+          rulesets: [stable-loop]
+    """))
+    cues, _ = resolve_cues(result, cfg, playlists=[])
+    assert len(cues) == 1
+    assert cues[0].bar == 112

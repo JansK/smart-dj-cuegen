@@ -28,7 +28,9 @@ def test_detect_stable_intro_constant_energy():
 
 def test_detect_stable_intro_not_at_bar_zero():
     n = 32
-    # Bars 0-3: drums way too loud (noisy), bars 4-19: stable, bars 20-31: noisy again.
+    # Bars 0-3: drums noisy (3.0), bars 4-19: stable (1.0), bars 20-31: stable (3.0).
+    # Exhaustive O(N²) search finds [15, 32) as longest (17 bars, CV=0.378 < 0.4),
+    # longer than [4, 20) (16 bars).
     drum = [3.0] * 4 + [1.0] * 16 + [3.0] * 12
     be = BarEnergy(
         drum_bar_energies=drum,
@@ -39,8 +41,8 @@ def test_detect_stable_intro_not_at_bar_zero():
     cfg = StableDetectionConfig(max_scan_bars=n, min_stable_bars=8, stability_cv_threshold=0.4)
     intro, _ = detect_stable_regions(be, _downbeats(n), cfg)
     assert intro is not None
-    assert intro.start_bar == 4
-    assert intro.end_bar == 20
+    assert intro.start_bar == 15
+    assert intro.end_bar == 32
 
 
 def test_detect_stable_no_intro_when_stable_region_too_short():

@@ -27,33 +27,14 @@ def _find_longest_stable(
     zone_end: int,
     config: StableDetectionConfig,
 ) -> tuple[int, int] | None:
-    """Find the longest maximal contiguous stable region."""
+    """Find the longest stable window via exhaustive O(N²) search."""
     best: tuple[int, int] | None = None
     best_len = 0
-
-    # Find all maximal contiguous stable runs
-    i = zone_start
-    while i < zone_end:
-        # Try to start a stable run at position i
-        run_start = i
-        run_end = i
-
-        # Extend the run as far as possible
-        for end in range(i + 1, zone_end + 1):
-            if _is_stable_window(stems, i, end, config.stability_cv_threshold):
-                run_end = end
-            else:
-                break
-
-        # If we found a stable run of min length, consider it
-        if run_end - run_start >= config.min_stable_bars:
-            if run_end - run_start > best_len:
-                best_len = run_end - run_start
-                best = (run_start, run_end)
-            i = run_end
-        else:
-            i += 1
-
+    for a in range(zone_start, zone_end):
+        for b in range(a + config.min_stable_bars, zone_end + 1):
+            if b - a > best_len and _is_stable_window(stems, a, b, config.stability_cv_threshold):
+                best_len = b - a
+                best = (a, b)
     return best
 
 

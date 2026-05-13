@@ -1,3 +1,4 @@
+import pytest
 from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
 from dj_cue_system.cli import app
@@ -230,7 +231,7 @@ def test_stems_run_processes_when_only_other_slot_cached(tmp_path, monkeypatch):
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
 
     with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
-               return_value=StemOnsets(vocal_first_onset=2.0)) as mock_fast:
+               return_value=(StemOnsets(vocal_first_onset=2.0), None)) as mock_fast:
         result = runner.invoke(app, [
             "stems", "run", "--path", "/music/track.mp3",
             "--no-hq", "--config", str(cfg),
@@ -263,3 +264,29 @@ def test_stems_run_skips_hq_when_hq_cached(tmp_path, monkeypatch):
     assert result.exit_code == 0
     mock_sep.assert_not_called()
     assert "cached" in result.output
+
+
+def test_get_stem_onsets_lq_returns_bar_energy_when_downbeats_provided(tmp_path, monkeypatch):
+    import dj_cue_system.stems.cache as stems_cache
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
+    from dj_cue_system.cli import _get_stem_onsets
+    from dj_cue_system.rules.config import load_config
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    cfg = load_config(str(cfg_file))
+
+    downbeats = [float(i) for i in range(32)]
+    mock_onsets = StemOnsets(drum_first_onset=0.5)
+    mock_bar_energy = BarEnergy([0.1]*32, [0.1]*32, [0.0]*32, [0.1]*32)
+
+    with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
+               return_value=(mock_onsets, mock_bar_energy)):
+        onsets, bar_energy, cache_source = _get_stem_onsets(
+            "/music/track.mp3", cfg, hq=False, downbeats=downbeats
+        )
+
+    assert bar_energy is not None
+    assert bar_energy.drum_bar_energies == pytest.approx([0.1] * 32)
+    assert cache_source is None  # freshly computed

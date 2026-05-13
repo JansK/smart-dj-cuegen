@@ -39,6 +39,7 @@ def _get_stem_onsets(
     config: AppConfig,
     hq: bool,
     force: bool = False,
+    downbeats: list[float] | None = None,
 ) -> tuple["StemOnsets", "BarEnergy | None", str | None]:
     """Return (StemOnsets, BarEnergy | None, cache_source).
 
@@ -66,6 +67,7 @@ def _get_stem_onsets(
 
     thresholds = config.settings.onset_thresholds
     w = config.settings.onset_window_frames
+    bar_energy = None
     if hq:
         from dj_cue_system.analysis.separation import separate_stems
         from dj_cue_system.analysis.onset import detect_onset_rms
@@ -79,11 +81,11 @@ def _get_stem_onsets(
         source = "demucs"
     else:
         from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
-        onsets = detect_stem_onsets_fast(audio_path, thresholds, w)
+        onsets, bar_energy = detect_stem_onsets_fast(audio_path, thresholds, w, downbeats=downbeats)
         source = "librosa"
 
-    stems_cache.save(audio_path, onsets, source)
-    return onsets, None, None
+    stems_cache.save(audio_path, onsets, source, bar_energy=bar_energy)
+    return onsets, bar_energy, None
 
 
 def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False) -> tuple["AnalysisResult", str | None]:

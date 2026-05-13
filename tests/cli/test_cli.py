@@ -330,3 +330,49 @@ def test_analyze_result_includes_detected_breaks(tmp_path, monkeypatch):
     assert len(breaks) == 1
     assert breaks[0].label == "break"
     assert breaks[0].start_bar == 8
+
+
+def test_run_full_analysis_appends_break_sections(tmp_path, monkeypatch):
+    """run_full_analysis appends detected break sections to result.sections."""
+    import dj_cue_system.stems.cache as stems_cache
+    from dj_cue_system.analysis.models import AnalysisResult, BarEnergy, Section, StemOnsets
+    from dj_cue_system.cli import run_full_analysis
+    from dj_cue_system.rules.config import load_config
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    cfg = load_config(str(cfg_file))
+
+    n = 32
+    downbeats = [float(i) for i in range(n)]
+    drum = [1.0] * n
+    bass = [1.0] * n
+    for i in range(8, 12):
+        drum[i] = 0.05
+        bass[i] = 0.05
+    bar_energy = BarEnergy(
+        drum_bar_energies=drum,
+        bass_bar_energies=bass,
+        vocal_bar_energies=[0.0] * n,
+        other_bar_energies=[0.0] * n,
+    )
+    fake_result = AnalysisResult(
+        bpm=120.0,
+        downbeats=downbeats,
+        total_bars=n,
+        sections=[],
+        stem_onsets=StemOnsets(),
+        audio_path="/music/track.mp3",
+        anlz_source=False,
+    )
+
+    with patch("dj_cue_system.analysis.fallback.analyze_with_allin1", return_value=fake_result), \
+         patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
+               return_value=(StemOnsets(), bar_energy)):
+        result, _ = run_full_analysis("/music/track.mp3", cfg, hq=False)
+
+    break_sections = [s for s in result.sections if s.label == "break"]
+    assert len(break_sections) == 1
+    assert break_sections[0].start_bar == 8
+    assert break_sections[0].end_bar == 12

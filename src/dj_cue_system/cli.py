@@ -79,6 +79,11 @@ def _get_stem_onsets(
             other_first_onset=detect_onset_rms(stems.other, stems.sample_rate, thresholds.other, w),
         )
         source = "demucs"
+        if downbeats is not None:
+            from dj_cue_system.analysis.energy import compute_bar_energy
+            bar_energy = compute_bar_energy(
+                stems.drums, stems.bass, stems.vocals, stems.other, stems.sample_rate, downbeats
+            )
     else:
         from dj_cue_system.analysis.fast_stems import detect_stem_onsets_fast
         onsets, bar_energy = detect_stem_onsets_fast(audio_path, thresholds, w, downbeats=downbeats)
@@ -93,8 +98,17 @@ def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False) -> t
     from dj_cue_system.analysis.fallback import analyze_with_allin1
 
     result = analyze_with_allin1(audio_path)
-    onsets, _bar_energy, cache_source = _get_stem_onsets(audio_path, config, hq)
+    onsets, bar_energy, cache_source = _get_stem_onsets(
+        audio_path, config, hq, downbeats=result.downbeats
+    )
     result.stem_onsets = onsets
+    if bar_energy is not None:
+        from dj_cue_system.analysis.break_detect import detect_breaks
+        from dj_cue_system.analysis.stable_detect import detect_stable_regions
+        breaks = detect_breaks(bar_energy, result.downbeats, config.settings.break_detection)
+        intro, outro = detect_stable_regions(bar_energy, result.downbeats, config.settings.stable_detection)
+        additions = breaks + ([intro] if intro else []) + ([outro] if outro else [])
+        result.sections = sorted(result.sections + additions, key=lambda s: s.start_bar)
     return result, cache_source
 
 
@@ -138,8 +152,17 @@ def _analyze_track(
     if result is None:
         result = analyze_with_allin1(track.path)
 
-    onsets, _bar_energy, cache_source = _get_stem_onsets(track.path, config, hq)
+    onsets, bar_energy, cache_source = _get_stem_onsets(
+        track.path, config, hq, downbeats=result.downbeats
+    )
     result.stem_onsets = onsets
+    if bar_energy is not None:
+        from dj_cue_system.analysis.break_detect import detect_breaks
+        from dj_cue_system.analysis.stable_detect import detect_stable_regions
+        breaks = detect_breaks(bar_energy, result.downbeats, config.settings.break_detection)
+        intro, outro = detect_stable_regions(bar_energy, result.downbeats, config.settings.stable_detection)
+        additions = breaks + ([intro] if intro else []) + ([outro] if outro else [])
+        result.sections = sorted(result.sections + additions, key=lambda s: s.start_bar)
     return result, cache_source
 
 

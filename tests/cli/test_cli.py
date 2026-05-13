@@ -290,3 +290,43 @@ def test_get_stem_onsets_lq_returns_bar_energy_when_downbeats_provided(tmp_path,
     assert bar_energy is not None
     assert bar_energy.drum_bar_energies == pytest.approx([0.1] * 32)
     assert cache_source is None  # freshly computed
+
+
+def test_analyze_result_includes_detected_breaks(tmp_path, monkeypatch):
+    """When bar energy is available, detect_breaks results appear in result.sections."""
+    import dj_cue_system.stems.cache as stems_cache
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
+    from dj_cue_system.cli import _get_stem_onsets
+    from dj_cue_system.rules.config import load_config
+
+    monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
+    cfg_file = tmp_path / "rules.yaml"
+    cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
+    cfg = load_config(str(cfg_file))
+
+    # 32 bars: bars 8-11 have drums+bass silent → break
+    n = 32
+    drum = [1.0] * n
+    bass = [1.0] * n
+    for i in range(8, 12):
+        drum[i] = 0.05
+        bass[i] = 0.05
+    bar_energy = BarEnergy(
+        drum_bar_energies=drum,
+        bass_bar_energies=bass,
+        vocal_bar_energies=[0.0] * n,
+        other_bar_energies=[0.0] * n,
+    )
+    downbeats = [float(i) for i in range(n)]
+
+    with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast",
+               return_value=(StemOnsets(), bar_energy)):
+        onsets, returned_bar_energy, _ = _get_stem_onsets(
+            "/music/track.mp3", cfg, hq=False, downbeats=downbeats
+        )
+
+    from dj_cue_system.analysis.break_detect import detect_breaks
+    breaks = detect_breaks(returned_bar_energy, downbeats, cfg.settings.break_detection)
+    assert len(breaks) == 1
+    assert breaks[0].label == "break"
+    assert breaks[0].start_bar == 8

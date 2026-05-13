@@ -4,7 +4,7 @@ warnings.filterwarnings("ignore", message=".*aifc was removed.*")
 warnings.filterwarnings("ignore", message=".*sunau was removed.*")
 import librosa
 
-from dj_cue_system.analysis.models import StemOnsets
+from dj_cue_system.analysis.models import BarEnergy, StemOnsets
 from dj_cue_system.analysis.onset import detect_onset_rms
 
 
@@ -22,7 +22,7 @@ def detect_stem_onsets_fast(
     thresholds,
     window_frames: int,
     downbeats: list[float] | None = None,
-) -> tuple[StemOnsets, "BarEnergy | None"]:
+) -> tuple[StemOnsets, BarEnergy | None]:
     """Fast stem onset detection via frequency-band filtering (no neural network).
 
     Runs in seconds vs minutes for Demucs. Accuracy is lower for heavily

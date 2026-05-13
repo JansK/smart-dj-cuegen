@@ -135,19 +135,23 @@ def test_show_elements_cache_annotation(tmp_path):
 def test_get_stem_onsets_returns_cached_result(tmp_path, monkeypatch):
     """_get_stem_onsets returns cached result without running analysis."""
     import dj_cue_system.stems.cache as stems_cache
-    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
     from dj_cue_system.cli import _get_stem_onsets
     from dj_cue_system.rules.config import load_config
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs")
+    bar_energy = BarEnergy(
+        drum_bar_energies=[0.1], bass_bar_energies=[0.2],
+        vocal_bar_energies=[0.3], other_bar_energies=[0.4],
+    )
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs", bar_energy=bar_energy)
 
     cfg_file = tmp_path / "rules.yaml"
     cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
     cfg = load_config(str(cfg_file))
 
     with patch("dj_cue_system.analysis.fast_stems.detect_stem_onsets_fast") as mock_fast:
-        onsets, source = _get_stem_onsets("/music/track.mp3", cfg, hq=False)
+        onsets, _, source = _get_stem_onsets("/music/track.mp3", cfg, hq=False)
 
     mock_fast.assert_not_called()
     assert source == "demucs"
@@ -157,12 +161,16 @@ def test_get_stem_onsets_returns_cached_result(tmp_path, monkeypatch):
 def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
     """_get_stem_onsets warns and uses cached result when cache has librosa but --hq set."""
     import dj_cue_system.stems.cache as stems_cache
-    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
     from dj_cue_system.cli import _get_stem_onsets
     from dj_cue_system.rules.config import load_config
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path)
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa")
+    bar_energy = BarEnergy(
+        drum_bar_energies=[0.1], bass_bar_energies=[0.2],
+        vocal_bar_energies=[0.3], other_bar_energies=[0.4],
+    )
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa", bar_energy=bar_energy)
 
     cfg_file = tmp_path / "rules.yaml"
     cfg_file.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -170,7 +178,7 @@ def test_get_stem_onsets_warns_on_librosa_cache_with_hq(tmp_path, monkeypatch):
 
     with patch("dj_cue_system.cli.console") as mock_console, \
          patch("dj_cue_system.analysis.separation.separate_stems") as mock_sep:
-        onsets, source = _get_stem_onsets("/music/track.mp3", cfg, hq=True)
+        onsets, _, source = _get_stem_onsets("/music/track.mp3", cfg, hq=True)
 
     mock_sep.assert_not_called()
     assert source == "librosa"

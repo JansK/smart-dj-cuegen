@@ -21,7 +21,7 @@ def test_save_and_load_demucs():
     stems_cache.save("/music/track.mp3", onsets, "demucs")
     result = stems_cache.load("/music/track.mp3", hq=True)
     assert result is not None
-    loaded_onsets, source = result
+    loaded_onsets, _, source = result
     assert source == "demucs"
     assert loaded_onsets.vocal_first_onset == 55.2
     assert loaded_onsets.drum_first_onset == 4.1
@@ -34,7 +34,7 @@ def test_save_and_load_librosa():
     stems_cache.save("/music/track.mp3", onsets, "librosa")
     result = stems_cache.load("/music/track.mp3", hq=False)
     assert result is not None
-    loaded_onsets, source = result
+    loaded_onsets, _, source = result
     assert source == "librosa"
     assert loaded_onsets.vocal_first_onset == 1.0
 
@@ -48,19 +48,19 @@ def test_both_slots_coexist():
     hq_result = stems_cache.load("/music/track.mp3", hq=True)
     assert hq_result is not None
     assert hq_result[0].vocal_first_onset == 10.0
-    assert hq_result[1] == "demucs"
+    assert hq_result[2] == "demucs"
 
     lq_result = stems_cache.load("/music/track.mp3", hq=False)
     assert lq_result is not None
     assert lq_result[0].vocal_first_onset == 1.0
-    assert lq_result[1] == "librosa"
+    assert lq_result[2] == "librosa"
 
 
 def test_hq_requested_falls_back_to_lq():
     stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa")
     result = stems_cache.load("/music/track.mp3", hq=True)
     assert result is not None
-    onsets, source = result
+    onsets, _, source = result
     assert source == "librosa"
     assert onsets.vocal_first_onset == 1.0
 
@@ -69,7 +69,7 @@ def test_lq_requested_falls_back_to_hq():
     stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=9.0), "demucs")
     result = stems_cache.load("/music/track.mp3", hq=False)
     assert result is not None
-    onsets, source = result
+    onsets, _, source = result
     assert source == "demucs"
     assert onsets.vocal_first_onset == 9.0
 
@@ -84,7 +84,7 @@ def test_save_and_load_with_none_values():
     stems_cache.save("/music/silent.mp3", onsets, "librosa")
     result = stems_cache.load("/music/silent.mp3", hq=False)
     assert result is not None
-    loaded_onsets, source = result
+    loaded_onsets, _, source = result
     assert source == "librosa"
     assert loaded_onsets.vocal_first_onset is None
 
@@ -94,7 +94,7 @@ def test_hq_slot_overwritten_by_second_demucs_save():
     stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=2.0), "demucs")
     result = stems_cache.load("/music/track.mp3", hq=True)
     assert result is not None
-    loaded, source = result
+    loaded, _, source = result
     assert loaded.vocal_first_onset == 2.0
     assert source == "demucs"
 
@@ -153,3 +153,47 @@ def test_clear_by_path_only_hq_exists():
 def test_clear_nonexistent_path():
     count = stems_cache.clear("/no/such/track.mp3")
     assert count == 0
+
+
+def test_save_and_load_with_bar_energies():
+    from dj_cue_system.analysis.models import BarEnergy
+    bar_energy = BarEnergy(
+        drum_bar_energies=[0.1, 0.2, 0.3],
+        bass_bar_energies=[0.05, 0.06, 0.07],
+        vocal_bar_energies=[0.0, 0.0, 0.0],
+        other_bar_energies=[0.4, 0.5, 0.6],
+    )
+    onsets = StemOnsets(vocal_first_onset=1.0)
+    stems_cache.save("/music/track.mp3", onsets, "demucs", bar_energy=bar_energy)
+
+    result = stems_cache.load("/music/track.mp3", hq=True)
+    assert result is not None
+    loaded_onsets, loaded_bar_energy, source = result
+    assert source == "demucs"
+    assert loaded_bar_energy is not None
+    assert loaded_bar_energy.drum_bar_energies == pytest.approx([0.1, 0.2, 0.3])
+    assert loaded_bar_energy.bass_bar_energies == pytest.approx([0.05, 0.06, 0.07])
+    assert loaded_bar_energy.other_bar_energies == pytest.approx([0.4, 0.5, 0.6])
+
+
+def test_load_without_bar_energies_returns_none_for_bar_energy():
+    import json
+    import hashlib
+    # Write a legacy cache entry without bar energy fields
+    key = hashlib.sha256(b"/music/legacy.mp3").hexdigest()[:16]
+    legacy = {
+        "audio_path": "/music/legacy.mp3",
+        "source": "demucs",
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "vocal_first_onset": 1.0,
+        "drum_first_onset": None,
+        "bass_first_onset": None,
+        "other_first_onset": None,
+    }
+    (stems_cache._CACHE_DIR / f"{key}_hq.json").write_text(json.dumps(legacy))
+
+    result = stems_cache.load("/music/legacy.mp3", hq=True)
+    assert result is not None
+    onsets, bar_energy, source = result
+    assert bar_energy is None
+    assert onsets.vocal_first_onset == pytest.approx(1.0)

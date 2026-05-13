@@ -39,28 +39,30 @@ def _get_stem_onsets(
     config: AppConfig,
     hq: bool,
     force: bool = False,
-) -> tuple["StemOnsets", str | None]:
-    """Return (StemOnsets, cache_source).
+) -> tuple["StemOnsets", "BarEnergy | None", str | None]:
+    """Return (StemOnsets, BarEnergy | None, cache_source).
 
     cache_source is the source string ("demucs" or "librosa") when returning
     a cached result, or None when freshly computed (and saved to cache).
     force=True bypasses the cache read (used by stems run).
     """
-    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
     from dj_cue_system.stems import cache as stems_cache
 
     if not force:
         cached = stems_cache.load(audio_path, hq=hq)
         if cached is not None:
-            onsets, source = cached
-            if hq and source == "librosa":
-                console.print(
-                    f'[yellow]⚠ Using cached librosa result for '
-                    f'"{os.path.basename(audio_path)}"; run '
-                    f'`dj-cue stems run --path "{audio_path}"` '
-                    f'to compute Demucs stems[/yellow]'
-                )
-            return onsets, source
+            onsets, bar_energy, source = cached
+            if bar_energy is not None:
+                if hq and source == "librosa":
+                    console.print(
+                        f'[yellow]⚠ Using cached librosa result for '
+                        f'"{os.path.basename(audio_path)}"; run '
+                        f'`dj-cue stems run --path "{audio_path}"` '
+                        f'to compute Demucs stems[/yellow]'
+                    )
+                return onsets, bar_energy, source
+            # bar_energy is None (legacy entry) — fall through to recompute
 
     thresholds = config.settings.onset_thresholds
     w = config.settings.onset_window_frames
@@ -81,7 +83,7 @@ def _get_stem_onsets(
         source = "librosa"
 
     stems_cache.save(audio_path, onsets, source)
-    return onsets, None
+    return onsets, None, None
 
 
 def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False) -> tuple["AnalysisResult", str | None]:
@@ -89,7 +91,7 @@ def run_full_analysis(audio_path: str, config: AppConfig, hq: bool = False) -> t
     from dj_cue_system.analysis.fallback import analyze_with_allin1
 
     result = analyze_with_allin1(audio_path)
-    onsets, cache_source = _get_stem_onsets(audio_path, config, hq)
+    onsets, _bar_energy, cache_source = _get_stem_onsets(audio_path, config, hq)
     result.stem_onsets = onsets
     return result, cache_source
 
@@ -134,7 +136,7 @@ def _analyze_track(
     if result is None:
         result = analyze_with_allin1(track.path)
 
-    onsets, cache_source = _get_stem_onsets(track.path, config, hq)
+    onsets, _bar_energy, cache_source = _get_stem_onsets(track.path, config, hq)
     result.stem_onsets = onsets
     return result, cache_source
 
@@ -486,8 +488,8 @@ def stems_run(
         if not force:
             cached = stems_cache.load(path, hq=hq)
             expected_source = "demucs" if hq else "librosa"
-            if cached is not None and cached[1] == expected_source:
-                initial_states.append(("skipped", cached[1]))
+            if cached is not None and cached[2] == expected_source:
+                initial_states.append(("skipped", cached[2]))
                 continue
         initial_states.append(("pending", ""))
 
@@ -513,7 +515,7 @@ def stems_run(
             progress.update(task, description=f"[bold]{title}[/bold]")
             try:
                 with warnings.catch_warnings(record=True):
-                    onsets, _ = _get_stem_onsets(path, cfg, hq, force=True)
+                    onsets, _bar_energy, _ = _get_stem_onsets(path, cfg, hq, force=True)
                 source = "demucs" if hq else "librosa"
                 stems_jobs.update_track(job, path, "done", source=source)
             except Exception as e:

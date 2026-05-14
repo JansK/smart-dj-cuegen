@@ -474,11 +474,11 @@ def stems_run(
 
     cfg = load_config(config)
 
-    # Build (path, title) list
-    track_pairs: list[tuple[str, str]] = []
+    # Build (path, title, dat_path | None) list
+    track_pairs: list[tuple[str, str, str | None]] = []
     if paths:
         for p in paths:
-            track_pairs.append((os.path.abspath(p), os.path.splitext(os.path.basename(p))[0]))
+            track_pairs.append((os.path.abspath(p), os.path.splitext(os.path.basename(p))[0], None))
     if library or playlist:
         try:
             tracks = get_tracks(db)
@@ -487,20 +487,26 @@ def stems_run(
                 t.playlists = playlist_map.get(t.id, [])
             if playlist:
                 tracks = [t for t in tracks if any(p in t.playlists for p in playlist)]
+            share_dir = os.path.join(os.path.dirname(db or DEFAULT_DB_PATH), "share")
             for t in tracks:
-                track_pairs.append((t.path, t.title or os.path.basename(t.path)))
+                dat_path = None
+                if t.analysis_data_path:
+                    candidate = os.path.join(share_dir, t.analysis_data_path.lstrip("/"))
+                    if os.path.exists(candidate):
+                        dat_path = candidate
+                track_pairs.append((t.path, t.title or os.path.basename(t.path), dat_path))
         except FileNotFoundError as e:
             console.print(f"[red]✗ Database not found:[/red] {e}")
             raise typer.Exit(1)
 
     # Deduplicate by absolute path, preserving order
     seen: set[str] = set()
-    deduped: list[tuple[str, str]] = []
-    for p, t in track_pairs:
+    deduped: list[tuple[str, str, str | None]] = []
+    for p, t, d in track_pairs:
         abs_p = os.path.abspath(p)
         if abs_p not in seen:
             seen.add(abs_p)
-            deduped.append((abs_p, t))
+            deduped.append((abs_p, t, d))
     track_pairs = deduped
 
     if not track_pairs:
@@ -509,7 +515,7 @@ def stems_run(
 
     # Mark cached tracks as skipped up front; cache result to avoid double lookup
     initial_states: list[tuple[str, str]] = []  # (status, source)
-    for path, _ in track_pairs:
+    for path, _, _dat in track_pairs:
         if not force:
             cached = stems_cache.load(path, hq=hq)
             expected_source = "demucs" if hq else "librosa"
@@ -518,8 +524,8 @@ def stems_run(
                 continue
         initial_states.append(("pending", ""))
 
-    job = stems_jobs.create(track_pairs, hq=hq)
-    for (path, _), (status, src) in zip(track_pairs, initial_states):
+    job = stems_jobs.create([(p, t) for p, t, _ in track_pairs], hq=hq)
+    for (path, _, _dat), (status, src) in zip(track_pairs, initial_states):
         if status == "skipped":
             stems_jobs.update_track(job, path, "skipped", source=src)
 
@@ -534,13 +540,20 @@ def stems_run(
         console=console,
     ) as progress:
         task = progress.add_task("Starting…", total=pending_count)
-        for (path, title), (status, _src) in zip(track_pairs, initial_states):
+        for (path, title, dat_path), (status, _src) in zip(track_pairs, initial_states):
             if status == "skipped":
                 continue
             progress.update(task, description=f"[bold]{title}[/bold]")
             try:
+                downbeats = None
+                if dat_path is not None:
+                    try:
+                        from dj_cue_system.analysis.anlz import parse_beat_grid
+                        downbeats = parse_beat_grid(dat_path).downbeats
+                    except Exception:
+                        pass
                 with warnings.catch_warnings(record=True):
-                    onsets, _bar_energy, _ = _get_stem_onsets(path, cfg, hq, force=True)
+                    onsets, _bar_energy, _ = _get_stem_onsets(path, cfg, hq, force=True, downbeats=downbeats)
                 source = "demucs" if hq else "librosa"
                 stems_jobs.update_track(job, path, "done", source=source)
             except Exception as e:

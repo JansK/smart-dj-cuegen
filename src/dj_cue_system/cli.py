@@ -474,11 +474,11 @@ def stems_run(
 
     cfg = load_config(config)
 
-    # Build (path, title, dat_path | None) list
-    track_pairs: list[tuple[str, str, str | None]] = []
+    # Build (path, title, dat_path | None, anlz_warn | None) list
+    track_pairs: list[tuple[str, str, str | None, str | None]] = []
     if paths:
         for p in paths:
-            track_pairs.append((os.path.abspath(p), os.path.splitext(os.path.basename(p))[0], None))
+            track_pairs.append((os.path.abspath(p), os.path.splitext(os.path.basename(p))[0], None, None))
     if library or playlist:
         try:
             tracks = get_tracks(db)
@@ -489,24 +489,30 @@ def stems_run(
                 tracks = [t for t in tracks if any(p in t.playlists for p in playlist)]
             share_dir = os.path.join(os.path.dirname(db or DEFAULT_DB_PATH), "share")
             for t in tracks:
+                title = t.title or os.path.basename(t.path)
                 dat_path = None
-                if t.analysis_data_path:
+                anlz_warn = None
+                if not t.analysis_data_path:
+                    anlz_warn = f"[yellow]⚠ No ANLZ path in database for {title!r} — bar energy will not be cached[/yellow]"
+                else:
                     candidate = os.path.join(share_dir, t.analysis_data_path.lstrip("/"))
                     if os.path.exists(candidate):
                         dat_path = candidate
-                track_pairs.append((t.path, t.title or os.path.basename(t.path), dat_path))
+                    else:
+                        anlz_warn = f"[yellow]⚠ ANLZ file missing for {title!r} ({candidate}) — bar energy will not be cached[/yellow]"
+                track_pairs.append((t.path, title, dat_path, anlz_warn))
         except FileNotFoundError as e:
             console.print(f"[red]✗ Database not found:[/red] {e}")
             raise typer.Exit(1)
 
     # Deduplicate by absolute path, preserving order
     seen: set[str] = set()
-    deduped: list[tuple[str, str, str | None]] = []
-    for p, t, d in track_pairs:
+    deduped: list[tuple[str, str, str | None, str | None]] = []
+    for p, t, d, w in track_pairs:
         abs_p = os.path.abspath(p)
         if abs_p not in seen:
             seen.add(abs_p)
-            deduped.append((abs_p, t, d))
+            deduped.append((abs_p, t, d, w))
     track_pairs = deduped
 
     if not track_pairs:
@@ -515,7 +521,7 @@ def stems_run(
 
     # Mark cached tracks as skipped up front; cache result to avoid double lookup
     initial_states: list[tuple[str, str]] = []  # (status, source)
-    for path, _, _dat in track_pairs:
+    for path, _, _dat, _w in track_pairs:
         if not force:
             cached = stems_cache.load(path, hq=hq)
             expected_source = "demucs" if hq else "librosa"
@@ -524,8 +530,8 @@ def stems_run(
                 continue
         initial_states.append(("pending", ""))
 
-    job = stems_jobs.create([(p, t) for p, t, _ in track_pairs], hq=hq)
-    for (path, _, _dat), (status, src) in zip(track_pairs, initial_states):
+    job = stems_jobs.create([(p, t) for p, t, _, _w in track_pairs], hq=hq)
+    for (path, _, _dat, _w), (status, src) in zip(track_pairs, initial_states):
         if status == "skipped":
             stems_jobs.update_track(job, path, "skipped", source=src)
 
@@ -540,7 +546,7 @@ def stems_run(
         console=console,
     ) as progress:
         task = progress.add_task("Starting…", total=pending_count)
-        for (path, title, dat_path), (status, _src) in zip(track_pairs, initial_states):
+        for (path, title, dat_path, anlz_warn), (status, _src) in zip(track_pairs, initial_states):
             if status == "skipped":
                 continue
             progress.update(task, description=f"[bold]{title}[/bold]")
@@ -550,8 +556,10 @@ def stems_run(
                     try:
                         from dj_cue_system.analysis.anlz import parse_beat_grid
                         downbeats = parse_beat_grid(dat_path).downbeats
-                    except Exception:
-                        pass
+                    except Exception as anlz_err:
+                        console.print(f"[yellow]⚠ Could not read ANLZ for {title!r}: {anlz_err} — bar energy will not be cached[/yellow]")
+                elif anlz_warn is not None:
+                    console.print(anlz_warn)
                 with warnings.catch_warnings(record=True):
                     onsets, _bar_energy, _ = _get_stem_onsets(path, cfg, hq, force=True, downbeats=downbeats)
                 source = "demucs" if hq else "librosa"

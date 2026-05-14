@@ -513,7 +513,7 @@ def stems_run(
         if not force:
             cached = stems_cache.load(path, hq=hq)
             expected_source = "demucs" if hq else "librosa"
-            if cached is not None and cached[2] == expected_source:
+            if cached is not None and cached[1] is not None and cached[2] == expected_source:
                 initial_states.append(("skipped", cached[2]))
                 continue
         initial_states.append(("pending", ""))

@@ -194,12 +194,13 @@ def test_stems_run_skips_matching_slot(tmp_path, monkeypatch):
     """stems run skips a track when the requested slot (LQ) is already cached."""
     import dj_cue_system.stems.cache as stems_cache
     import dj_cue_system.stems.jobs as stems_jobs
-    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa")
+    bar_energy = BarEnergy([0.1], [0.1], [0.0], [0.1])
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "librosa", bar_energy=bar_energy)
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")
@@ -245,12 +246,13 @@ def test_stems_run_skips_hq_when_hq_cached(tmp_path, monkeypatch):
     """stems run skips a track when the HQ slot is already cached and --hq is requested."""
     import dj_cue_system.stems.cache as stems_cache
     import dj_cue_system.stems.jobs as stems_jobs
-    from dj_cue_system.analysis.models import StemOnsets
+    from dj_cue_system.analysis.models import BarEnergy, StemOnsets
 
     monkeypatch.setattr(stems_cache, "_CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(stems_jobs, "_JOBS_DIR", tmp_path / "jobs")
 
-    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs")
+    bar_energy = BarEnergy([0.1], [0.1], [0.0], [0.1])
+    stems_cache.save("/music/track.mp3", StemOnsets(vocal_first_onset=1.0), "demucs", bar_energy=bar_energy)
 
     cfg = tmp_path / "rules.yaml"
     cfg.write_text("rulesets: {}\ndefaults:\n  rulesets: []\n")

@@ -1,4 +1,7 @@
+import warnings
 import numpy as np
+warnings.filterwarnings("ignore", message=".*aifc was removed.*")
+warnings.filterwarnings("ignore", message=".*sunau was removed.*")
 import librosa
 
 

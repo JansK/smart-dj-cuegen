@@ -10,3 +10,4 @@ output.xml
 .coverage
 htmlcov/
 .worktrees/
+.direnv/

@@ -29,7 +29,7 @@ def _content_to_track(content, raw_cues: list) -> Track:
         id=str(content.ID),
         path=str(content.FolderPath),
         title=str(content.Title or ""),
-        artist=str(content.Artist or ""),
+        artist=str(content.Artist.Name if content.Artist else ""),
         analysis_data_path=content.AnalysisDataPath,
         existing_cues=existing,
     )

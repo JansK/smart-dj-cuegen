@@ -6,7 +6,8 @@ from dj_cue_system.library.models import Track, ExistingCue
 
 def _mock_content(id="1", title="Track", artist="Artist", path="/music/track.mp3", anlz="PIONEER/ANLZ0000.DAT"):
     c = MagicMock()
-    c.ID = id; c.Title = title; c.Artist = artist
+    c.ID = id; c.Title = title
+    c.Artist = MagicMock(); c.Artist.Name = artist
     c.FolderPath = path; c.AnalysisDataPath = anlz
     return c
 

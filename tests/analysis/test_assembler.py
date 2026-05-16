@@ -42,3 +42,27 @@ def test_build_sections_empty():
     beat_grid = BeatGridResult(bpm=120.0, downbeats=downbeats, total_bars=2)
     sections = build_sections([], beat_grid, [])
     assert sections == []
+
+
+def test_build_sections_merges_consecutive_same_label():
+    # Three consecutive "chorus" entries should collapse into one section.
+    downbeats = [i * 2.0 for i in range(16)]
+    beat_grid = BeatGridResult(bpm=120.0, downbeats=downbeats, total_bars=16)
+    all_beat_times = [i * 0.5 for i in range(64)]
+
+    phrases = [
+        PhraseEntry(beat=1,  raw_label="intro",  mood="high"),
+        PhraseEntry(beat=9,  raw_label="chorus", mood="high"),
+        PhraseEntry(beat=17, raw_label="chorus", mood="high"),
+        PhraseEntry(beat=25, raw_label="chorus", mood="high"),
+        PhraseEntry(beat=33, raw_label="outro",  mood="high"),
+    ]
+
+    sections = build_sections(phrases, beat_grid, all_beat_times)
+
+    assert len(sections) == 3
+    assert sections[0].label == "intro"
+    assert sections[1].label == "chorus"
+    assert sections[1].start_bar == 2   # starts at first chorus entry
+    assert sections[1].end_bar == 8    # ends where outro begins
+    assert sections[2].label == "outro"

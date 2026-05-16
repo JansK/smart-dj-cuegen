@@ -12,7 +12,7 @@ class BeatGridResult:
 @dataclass
 class PhraseEntry:
     beat: int        # beat number (1-indexed) where phrase starts
-    raw_label: str   # normalized label e.g. "verse", "chorus"
+    raw_label: str   # raw Rekordbox label e.g. "verse1", "chorus"
     mood: str        # "low", "mid", "high"
 
 
@@ -39,47 +39,22 @@ _MOOD_INT_TO_STR = {1: "high", 2: "mid", 3: "low"}
 # mood=3 (low):   kinds seen in practice: 1-9
 _PSSI_KIND_TO_LABEL: dict[int, dict[int, str]] = {
     1: {
-        1: "intro", 2: "up", 3: "down", 4: "chorus",
-        5: "verse1", 6: "bridge", 7: "outro",
+        1: "intro", 2: "up", 3: "down", 4: "verse1",
+        5: "chorus", 6: "outro", 7: "bridge",
     },
     2: {
         1: "intro",
-        2: "verse1", 3: "verse2", 4: "bridge", 5: "outro",
-        6: "verse3", 7: "verse4", 8: "chorus",
-        9: "up", 10: "outro",
+        2: "verse1", 3: "verse2", 4: "verse3", 5: "verse4",
+        6: "verse5", 7: "verse6", 8: "bridge",
+        9: "chorus", 10: "outro",
     },
     3: {
         1: "intro",
-        2: "verse1", 3: "verse2", 4: "bridge", 5: "outro",
-        6: "verse3", 7: "verse4", 8: "chorus",
-        9: "up",
+        2: "verse1", 3: "verse1", 4: "verse1", 5: "verse2",
+        6: "verse2", 7: "verse2", 8: "bridge",
+        9: "chorus", 10: "outro",
     },
 }
-
-_NORMALIZATION_MAP: dict[str, str] = {
-    "intro": "intro",
-    "chorus": "chorus",
-    "bridge": "bridge",
-    "outro": "outro",
-    "verse1": "verse", "verse1b": "verse", "verse1c": "verse",
-    "verse2": "verse", "verse2b": "verse", "verse2c": "verse",
-    "verse3": "verse", "verse4": "verse", "verse5": "verse", "verse6": "verse",
-    "up": "up",
-    "down": "down",
-}
-
-_RAW_MAP: dict[str, str] = {
-    "up": "up",
-    "down": "down",
-}
-
-
-def normalize_phrase_label(label: str, mood: str, normalized: bool = True) -> str:
-    key = label.lower()
-    if not normalized:
-        return _RAW_MAP.get(key, _NORMALIZATION_MAP.get(key, key))
-    return _NORMALIZATION_MAP.get(key, key)
-
 
 def parse_phrases(ext_path: str) -> list[PhraseEntry]:
     anlz = AnlzFile.parse_file(ext_path)
@@ -90,7 +65,6 @@ def parse_phrases(ext_path: str) -> list[PhraseEntry]:
 
     result = []
     for entry in tag.content.entries:
-        raw = kind_map.get(entry.kind, f"kind{entry.kind}")
-        normalized = normalize_phrase_label(raw, mood_str)
-        result.append(PhraseEntry(beat=entry.beat, raw_label=normalized, mood=mood_str))
+        label = kind_map.get(entry.kind, f"kind{entry.kind}")
+        result.append(PhraseEntry(beat=entry.beat, raw_label=label, mood=mood_str))
     return result

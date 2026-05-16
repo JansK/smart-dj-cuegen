@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
-from dj_cue_system.analysis.anlz import parse_beat_grid, BeatGridResult, parse_phrases, normalize_phrase_label
+from dj_cue_system.analysis.anlz import parse_beat_grid, BeatGridResult, parse_phrases
 
 
 def _make_pqtz_tag(beat_numbers: list[int], times_s: list[float], bpm: float) -> MagicMock:
@@ -62,35 +62,8 @@ def _make_pssi_tag(mood_int: int, entries: list[tuple[int, int]]) -> MagicMock:
     return tag
 
 
-def test_normalize_low_mood_verse():
-    assert normalize_phrase_label("Verse1", "low") == "verse"
-    assert normalize_phrase_label("Verse1b", "low") == "verse"
-    assert normalize_phrase_label("Verse2c", "low") == "verse"
-
-
-def test_normalize_mid_mood_verse():
-    assert normalize_phrase_label("Verse3", "mid") == "verse"
-
-
-def test_normalize_high_mood_up_down():
-    assert normalize_phrase_label("Up", "high") == "up"
-    assert normalize_phrase_label("Down", "high") == "down"
-
-
-def test_normalize_universal_labels():
-    for mood in ("low", "mid", "high"):
-        assert normalize_phrase_label("Intro", mood) == "intro"
-        assert normalize_phrase_label("Chorus", mood) == "chorus"
-        assert normalize_phrase_label("Outro", mood) == "outro"
-
-
-def test_normalize_preserves_raw_labels():
-    assert normalize_phrase_label("Up", "high", normalized=False) == "up"
-    assert normalize_phrase_label("Down", "high", normalized=False) == "down"
-
-
 def test_parse_phrases_returns_entries():
-    # mood=1 (high): kind 1=intro, 2=up, 4=chorus
+    # mood=1 (high): kind 1=intro, 5=chorus, 4=verse1
     tag = _make_pssi_tag(mood_int=1, entries=[(1, 1), (17, 5), (49, 4)])
     mock_anlz = MagicMock()
     mock_anlz.get_tag.return_value = tag
@@ -102,5 +75,5 @@ def test_parse_phrases_returns_entries():
     assert len(phrases) == 3
     assert phrases[0].beat == 1
     assert phrases[0].raw_label == "intro"
-    assert phrases[1].raw_label == "verse"   # kind=5 → verse1 → verse
-    assert phrases[2].raw_label == "chorus"  # kind=4 → chorus
+    assert phrases[1].raw_label == "chorus"   # kind=5 → chorus
+    assert phrases[2].raw_label == "verse1"   # kind=4 → verse1

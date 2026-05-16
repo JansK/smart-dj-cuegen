@@ -171,13 +171,15 @@ defaults:
 | `first_bass_onset` | Demucs | First frame bass stem is active |
 | `first_other_onset` | Demucs | First frame other-instruments stem is active |
 | `intro_start` / `intro_end` | ANLZ / all-in-one | Start/end of intro section |
-| `verse_start` | ANLZ / all-in-one | Start of first verse (also matches High-mood "Up" sections) |
+| `verse_start` | ANLZ / all-in-one | Start of first verse (`verse1`–`verse6`, also matches High-mood "Up" sections) |
 | `chorus_start` | ANLZ / all-in-one | Start of first chorus |
 | `bridge_start` | ANLZ / all-in-one | Start of first bridge |
 | `break_start` | ANLZ / all-in-one | Start of first break (also matches High-mood "Down" sections) |
 | `outro_start` / `outro_end` | ANLZ / all-in-one | Start/end of outro |
 | `up_start` | ANLZ (High mood) | Raw Rekordbox "Up" label — targets High-mood tracks specifically |
 | `down_start` | ANLZ (High mood) | Raw Rekordbox "Down" label — targets High-mood tracks specifically |
+| `stable_intro_start` / `stable_intro_end` | stem energy | Start/end of the longest low-variance region found in the intro area (good loop anchor) |
+| `stable_outro_start` / `stable_outro_end` | stem energy | Start/end of the longest low-variance region found in the outro area (good loop anchor) |
 
 ### Rule fields
 
@@ -204,19 +206,16 @@ Qualifiers let you target specific instances of a section, not just the first on
 
 If no sections match a qualifier, the rule is skipped and a warning is shown.
 
-### Rekordbox phrase normalization
+### Rekordbox phrase labels
 
-Rekordbox assigns tracks a mood (Low, Mid, High) and the phrase labels depend on it. The tool normalizes these consistently:
+Rekordbox assigns tracks a mood (Low, Mid, High) and the phrase labels depend on it. Section labels are passed through as-is from Rekordbox:
 
-| Rekordbox label | Mood | Normalized to |
-|---|---|---|
-| Intro | All | `intro` |
-| Verse 1/1b/1c, Verse 1–6 | Low, Mid | `verse` |
-| Up | High | `up` (matches `verse_start` via alias) |
-| Down | High | `down` (matches `break_start` via alias) |
-| Bridge | Low, Mid | `bridge` |
-| Chorus | All | `chorus` |
-| Outro | All | `outro` |
+| Mood | Labels |
+|---|---|
+| Low, Mid | `intro`, `verse1`, `verse2`, `verse3`, `verse4`, `bridge`, `chorus`, `outro` |
+| High | `intro`, `up`, `down`, `chorus`, `bridge`, `outro` |
+
+`verse_start` matches all `verse1`–`verse6` labels and the High-mood `up` label. `break_start` matches the High-mood `down` label.
 
 ## CLI reference
 
@@ -296,6 +295,71 @@ dj-cue backup diff backup-a.json backup-b.json   # diff two backups
 ```
 
 Backups are JSON files saved to `~/.dj-cue/backups/` by default.
+
+### `dj-cue stems`
+
+Pre-process stem onset detection in bulk and cache the results so `analyze` and `show-elements` don't compute them on-the-fly per track.
+
+#### `stems run`
+
+```bash
+# Process specific files
+dj-cue stems run --path "/Music/track.mp3" --path "/Music/other.mp3"
+
+# Process your full Rekordbox library (Demucs, uses cache by default)
+dj-cue stems run --library
+
+# Limit to a playlist
+dj-cue stems run --playlist "Deep House"
+
+# Use fast librosa instead of Demucs
+dj-cue stems run --library --no-hq
+
+# Force re-process tracks already in cache
+dj-cue stems run --library --force
+```
+
+| Option | Description |
+|---|---|
+| `--path PATH` | Audio file to process (repeatable) |
+| `--library` | Process all tracks in Rekordbox |
+| `--playlist NAME` | Limit to tracks in this playlist (repeatable) |
+| `--hq` / `--no-hq` | Use Demucs (default) or fast librosa |
+| `--force` | Re-process tracks already in cache |
+| `--db PATH` | Path to Rekordbox master.db (auto-detected on Mac) |
+| `--config PATH` | Path to rules.yaml (default: `config/rules.yaml`) |
+
+#### `stems status`
+
+Show the current state of a stems run job.
+
+```bash
+dj-cue stems status              # most recent job
+dj-cue stems status <JOB_ID>     # specific job
+```
+
+#### `stems jobs`
+
+List all stems run jobs, newest first.
+
+```bash
+dj-cue stems jobs
+```
+
+#### `stems cache list`
+
+List all cached stem onset results.
+
+```bash
+dj-cue stems cache list
+```
+
+#### `stems cache clear`
+
+```bash
+dj-cue stems cache clear                          # clear all (prompts for confirmation)
+dj-cue stems cache clear --path "/Music/track.mp3"  # clear one entry
+```
 
 ### `dj-cue restore`
 

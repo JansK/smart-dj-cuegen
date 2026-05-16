@@ -20,7 +20,7 @@ def build_sections(
             return all_beat_times[-1] if all_beat_times else 0.0
         return all_beat_times[idx]
 
-    sections = []
+    raw = []
     for i, phrase in enumerate(phrases):
         start_time = beat_to_time(phrase.beat)
         start_bar = timestamp_to_bar(start_time, beat_grid.downbeats)
@@ -32,11 +32,27 @@ def build_sections(
             end_time = beat_grid.downbeats[-1] if beat_grid.downbeats else start_time
             end_bar = beat_grid.total_bars
 
-        sections.append(Section(
+        raw.append(Section(
             label=phrase.raw_label,
             start_bar=start_bar,
             end_bar=end_bar,
             start_time=start_time,
             end_time=end_time,
         ))
-    return sections
+
+    # Merge consecutive entries with the same label into one section,
+    # matching how Rekordbox visually groups adjacent same-kind phrase blocks.
+    merged = [raw[0]]
+    for s in raw[1:]:
+        if s.label == merged[-1].label:
+            prev = merged[-1]
+            merged[-1] = Section(
+                label=prev.label,
+                start_bar=prev.start_bar,
+                end_bar=s.end_bar,
+                start_time=prev.start_time,
+                end_time=s.end_time,
+            )
+        else:
+            merged.append(s)
+    return merged
